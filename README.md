@@ -14,5 +14,3 @@ MWE for an `sbt` setup of an external Isabelle component.
      echo 'init_component "/this/project/dir/target/my_component/scala-2.12"' >> ~/.isabelle/etc/settings
      ```
 3. Run via tool: `./sbt "project my-component" run`
-
-## How it works
