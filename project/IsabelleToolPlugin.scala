@@ -17,7 +17,6 @@ object IsabelleToolPlugin extends AutoPlugin {
       settingKey[String]("isabelle command for run task")
     lazy val isabelleComponentAssembly =
       taskKey[File]("isabelle component assembly task")
-    lazy val isabelleInstall = taskKey[Unit]("Initial build of Isabelle")
   }
 
   import autoImport._
@@ -28,16 +27,11 @@ object IsabelleToolPlugin extends AutoPlugin {
         // Assemble fat jar for isabelle tool
         val fatJarName = assembly.value.getName
         val toolClass = (mainClass in (Compile, run)).value
-          .getOrElse(
-            throw new IllegalArgumentException(
-              "No tool (main) class specified!"
-            )
-          )
 
         // Write settings file
-        val file = (crossTarget in Compile).value / "etc" / "settings"
-        val contents = "classpath \"$COMPONENT/" + fatJarName + "\"\n" +
-          "isabelle_scala_service \"" + toolClass + "\""
+        val file = (target in Compile).value / "etc" / "settings"
+        val contents = "classpath \"$COMPONENT/" + crossTarget.value.getName + "/" + fatJarName + "\"\n" +
+          toolClass.map("isabelle_scala_service \"" + _ + "\"\n").getOrElse("")
         IO.write(file, contents)
 
         file
@@ -59,19 +53,12 @@ object IsabelleToolPlugin extends AutoPlugin {
             "Running isabelle tool failed with exit code " + resultCode
           )
         }
-      },
-      isabelleInstall := {
-        val logger = streams.value.log
-        val executable = isabelleExecutable.value.getAbsolutePath
-        runIsabelle(logger, executable, Seq("components", "-a"))
-        runIsabelle(logger, executable, Seq("jedit", "-bf"))
       }
     )
 
-  def runIsabelle(logger: Logger,
-                  executable: String,
-                  args: Seq[String]): Int = {
+  def runIsabelle(logger: Logger, executable: String, args: Seq[String]): Int = {
     logger.info("Running isabelle " + args.mkString(" "))
-    Process(executable, args).!(logger)
+    val process = Process(executable, args).run(logger)
+    process.exitValue()
   }
 }

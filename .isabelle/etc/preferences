@@ -1,0 +1,4 @@
+(* Defaults *)
+
+editor_presentation = "true"
+export_theory = "true"

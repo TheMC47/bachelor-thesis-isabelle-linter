@@ -1,0 +1,4 @@
+#-*- shell-script -*- :mode=shellscript:
+
+init_components "$ISABELLE_COMPONENTS_BASE" "$ISABELLE_HOME/Admin/components/main"
+init_component "$ISABELLE_HOME_USER/../my-component/target"
