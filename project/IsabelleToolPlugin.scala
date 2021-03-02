@@ -33,10 +33,10 @@ object IsabelleToolPlugin extends AutoPlugin {
         file
       },
       run := {
-        assembly.value
-
         // Execute isabelle run config for custom tool
         Def.inputTaskDyn {
+          // Build tool assembly
+          assembly.value
           // Parse tool args
           val args = spaceDelimited("<arg>").parsed
           // Run
