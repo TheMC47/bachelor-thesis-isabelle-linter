@@ -1,38 +1,23 @@
 
 name := "sbt-isabelle-component"
 
-version := "1.0"
+version := "1.1"
 
 scalaVersion in ThisBuild := "2.13.4"
 
 // Root project, aggregates sub-projects
 lazy val root = (project in file("."))
   .settings(publish / skip := true)
-  .aggregate(pure, `my-component`)
+  .aggregate(`my-component`)
 
 // Isabelle/Pure
-lazy val pure = (project in file("isabelle"))
-  .settings(
-    publish / skip := true,
-    compile / skip := true,
-    unmanagedJars in Compile ++= Seq(
-      baseDirectory.value / "lib" / "classes" / "Pure.jar",
-    ),
-    libraryDependencies ++= Seq(
-      "org.tukaani" % "xz" % "1.8"
-    ),
-    target := baseDirectory.value / "target" / "pure",
-    scalaSource in Compile := baseDirectory.value / "src" / "Pure",
-  )
-
-// Executable
-isabelleExecutable in ThisBuild := baseDirectory.value / "isabelle.sh"
-
+lazy val isabelle = project.enablePlugins(IsabellePlugin)
 
 // Our component!
 lazy val `my-component` = project
   .settings(
+    isabelleProject := isabelle,
     isabelleCommand := "my_tool_cmd",
   )
-  .enablePlugins(IsabelleToolPlugin)
-  .dependsOn(pure)
+  .enablePlugins(IsabelleToolPlugin) // Tool wrapper and run
+  .dependsOn(isabelle) // Compilation

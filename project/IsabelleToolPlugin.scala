@@ -1,5 +1,3 @@
-import scala.sys.process.Process
-
 import sbt.Keys._
 import sbt._
 import sbt.complete.DefaultParsers._
@@ -12,18 +10,16 @@ object IsabelleToolPlugin extends AutoPlugin {
   override def requires: Plugins = AssemblyPlugin
 
   object autoImport {
-    lazy val isabelleExecutable = settingKey[File]("Isabelle executable")
+    lazy val isabelleProject = settingKey[Project]("isabelle project")
     lazy val isabelleCommand =
-      settingKey[String]("isabelle command for run task")
-    lazy val isabelleComponentAssembly =
-      taskKey[File]("isabelle component assembly task")
+      settingKey[String]("isabelle tool command")
   }
 
   import autoImport._
 
   override def projectSettings: Seq[Def.Setting[_]] =
     Seq(
-      isabelleComponentAssembly := {
+      assembly := {
         // Assemble fat jar for isabelle tool
         val fatJarName = assembly.value.getName
         val toolClass = (mainClass in (Compile, run)).value
@@ -37,28 +33,15 @@ object IsabelleToolPlugin extends AutoPlugin {
         file
       },
       run := {
-        isabelleComponentAssembly.value
+        assembly.value
 
-        // Parse tool args
-        val args = spaceDelimited("<arg>").parsed
-
-        val resultCode = runIsabelle(
-          streams.value.log,
-          isabelleExecutable.value.getAbsolutePath,
-          isabelleCommand.value +: args
-        )
-
-        if (resultCode != 0) {
-          throw new IllegalStateException(
-            "Running isabelle tool failed with exit code " + resultCode
-          )
-        }
+        // Execute isabelle run config for custom tool
+        Def.inputTaskDyn {
+          // Parse tool args
+          val args = spaceDelimited("<arg>").parsed
+          // Run
+          (run in isabelleProject.value).toTask(" " + (isabelleCommand.value +: args).mkString(" "))
+        }.evaluated
       }
     )
-
-  def runIsabelle(logger: Logger, executable: String, args: Seq[String]): Int = {
-    logger.info("Running isabelle " + args.mkString(" "))
-    val process = Process(executable, args).run(logger)
-    process.exitValue()
-  }
 }
