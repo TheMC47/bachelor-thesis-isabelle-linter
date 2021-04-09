@@ -1,4 +1,4 @@
-package mwe
+package linter
 
 import isabelle._
 
@@ -6,4 +6,4 @@ import isabelle._
 object Tools extends App
 
 /* This enables Isabelle entry point. */
-class Tools extends Isabelle_Scala_Tools(My_Component.isabelle_tool)
+class Tools extends Isabelle_Scala_Tools(Linter.isabelle_tool)
