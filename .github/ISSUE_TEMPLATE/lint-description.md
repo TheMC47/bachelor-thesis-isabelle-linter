@@ -7,7 +7,6 @@ assignees: TheMC47
 
 ---
 
-## Lint: Title here
 ## Why is this bad?
 Short description on why this is a bad practice
 ## Refactor suggestions
