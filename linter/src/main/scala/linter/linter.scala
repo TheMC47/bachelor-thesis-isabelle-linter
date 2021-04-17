@@ -18,40 +18,6 @@ object Linter {
       selection: Sessions.Selection = Sessions.Selection.empty
   ) {
 
-    /* Debugging/exploration functions to bombard the terminal with XML */
-    def indent_and_echo = (n: Int, s: String) => {
-      progress.echo("  " * n + s)
-      // Thread.sleep(100)
-    }
-
-    def decipher_m(markup: Markup, n: Int): Unit = {
-      indent_and_echo(n, "NAME: " + markup.name)
-    }
-
-    def decipher(xml: XML.Body, n: Int = 0): Unit =
-      xml foreach { elem =>
-        elem match {
-          // case Elem(SorryE(), body) => {
-          //   indent_and_echo(n, "Sorry")
-          //   decipher(body, n + 1)
-          // }
-          // case Elem(markup, body) => {
-          //   indent_and_echo(n, "<= ELEM =>")
-          //   decipher_m(markup, n)
-          //   decipher(body, n + 1)
-          //   indent_and_echo(n, "=> ELEM <=")
-          // }
-          // case XML.Text(content) => {
-          //   indent_and_echo(n, "<= Text =>")
-          //   indent_and_echo(n, content)
-          //   indent_and_echo(n, ">= Text =<")
-          // }
-          case _ => ()
-        }
-      }
-
-    /* ======= Actual code starts here */
-
     // Use Dump to get a context...
     val context =
       Dump.Context(
@@ -75,42 +41,39 @@ object Linter {
         val snapshot = args.snapshot
         for (node_name <- snapshot.node_files) {
           val node = snapshot.get_node(node_name)
-          val xml: XML.Body =
-            snapshot.state.xml_markup(
-              snapshot.version,
-              node_name,
-              elements = Markup.Elements(
-                // Markup.KEYWORD,
-                // Markup.KEYWORD1,
-                // Markup.KEYWORD2,
-                // Markup.KEYWORD3,
-                // Markup.PLAIN_TEXT,
-                // Markup.OPERATOR,
-                // Markup.DELIMITER
-                Markup.ENTITY
-              )
-            )
-          // progress.echo(XML.string_of_body(xml))
-          // decipher(xml)
-          val parsed_xml: ContextNode = parse(xml)
-          // val l = xml.length
-          // progress.echo(s"Read: $l lines")
-          val linted = lints.foldLeft(parsed_xml) { (context_node, lint) =>
-            lint.lint(context_node)
+          val commands = node.commands
+          commands.iterator foreach debugCommand
+
+          def debugCommand(c: Command): Unit = {
+            def markups(state: Command.State): List[Markup] = state.status
+            // Print stuff that you think is useful
+            val span = c.span
+            progress.echo(c.source)
+            progress.echo("----------")
+            progress.echo("name: " + span.name)
+            progress.echo("kind: " + span.kind.toString)
+            progress.echo("position: " + span.position.toString)
+            val tokens: List[Token] = span.content
+            val s: List[String] = tokens.map(t => t.kind.toString + "-" + t.source)
+            progress.echo(s.mkString("Tokens_sources(", ",", ")"))
+            val cmd_states = snapshot.state.command_states(snapshot.version, c)
+            progress.echo("Number of command states: " + cmd_states.length.toString())
+            val markups_str = markups(cmd_states.head).map(_.name).mkString(",")
+            progress.echo("Markups (for first cmd state): " + markups_str)
+            progress.echo("##########")
           }
-          report(linted)
-          // I couldn't figure out how to use a particular theory, so I'm adding
-          // a delay to manually stop the processing
-          progress.echo("This is getting out of hand, now there i̶s̶ will be two of them")
-          Thread.sleep(100000)
         }
       }))
 
     context.check_errors
 
+    // XXX THis is not valid anymore
     // Print the lints
     def report(node: ContextNode): Unit = node match {
-      case Annotated_Node(children, Lint_Context(ast_node, span, xml, lint_result)) => {
+      case Annotated_Node(
+            children,
+            Lint_Context(ast_node, span, xml, lint_result)
+          ) => {
         lint_result map (span.report(progress, _))
         children map report
       }
