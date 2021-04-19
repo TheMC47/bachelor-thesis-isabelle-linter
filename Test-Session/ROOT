@@ -1,0 +1,7 @@
+chapter ROOT
+
+session Example = Pure +
+  sessions
+    FOL
+  theories
+    Test (global)
