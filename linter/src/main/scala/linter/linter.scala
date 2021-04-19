@@ -39,29 +39,26 @@ object Linter {
         progress.echo("Processing theory " + args.print_node + " ...")
 
         val snapshot = args.snapshot
-        for (node_name <- snapshot.node_files) {
-          val node = snapshot.get_node(node_name)
-          val commands = node.commands
-          commands.iterator foreach debugCommand
-
-          def debugCommand(c: Command): Unit = {
-            def markups(state: Command.State): List[Markup] = state.status
-            // Print stuff that you think is useful
-            val span = c.span
-            progress.echo(c.source)
-            progress.echo("----------")
-            progress.echo("name: " + span.name)
-            progress.echo("kind: " + span.kind.toString)
-            progress.echo("position: " + span.position.toString)
-            val tokens: List[Token] = span.content
-            val s: List[String] = tokens.map(t => t.kind.toString + "-" + t.source)
-            progress.echo(s.mkString("Tokens_sources(", ",", ")"))
-            val cmd_states = snapshot.state.command_states(snapshot.version, c)
-            progress.echo("Number of command states: " + cmd_states.length.toString())
-            val markups_str = markups(cmd_states.head).map(_.name).mkString(",")
-            progress.echo("Markups (for first cmd state): " + markups_str)
-            progress.echo("##########")
-          }
+        val node = snapshot.node
+        val commands = node.commands
+        commands.iterator foreach debugCommand
+        def debugCommand(c: Command): Unit = {
+          def markups(state: Command.State): List[Markup] = state.status
+          // Print stuff that you think is useful
+          val span = c.span
+          progress.echo(c.source)
+          progress.echo("----------")
+          progress.echo("name: " + span.name)
+          progress.echo("kind: " + span.kind.toString)
+          progress.echo("position: " + span.position.toString)
+          val tokens: List[Token] = span.content
+          val s: List[String] = tokens.map(t => t.kind.toString + "-" + t.source)
+          progress.echo(s.mkString("Tokens_sources(", ",", ")"))
+          val cmd_states = snapshot.state.command_states(snapshot.version, c)
+          progress.echo("Number of command states: " + cmd_states.length.toString())
+          val markups_str = markups(cmd_states.head).map(_.name).mkString(",")
+          progress.echo("Markups (for first cmd state): " + markups_str)
+          progress.echo("##########")
         }
       }))
 
