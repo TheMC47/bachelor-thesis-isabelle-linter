@@ -4,6 +4,8 @@ import java.io.PrintWriter
 
 import isabelle._
 import scala.collection.immutable
+import scala.util.parsing.combinator._
+import scala.util.parsing.input
 
 object Linter {
 
@@ -40,49 +42,73 @@ object Linter {
         val snapshot = args.snapshot
         val node = snapshot.node
         val commands = node.commands
-        commands.iterator foreach debugCommand
-        def debugCommand(c: Command): Unit = {
-          def markups(state: Command.State): List[Markup] = state.status
+        commands.iterator foreach (c => {
           // Print stuff that you think is useful
+          def markups(state: Command.State): List[Markup] = state.status
           val span = c.span
           progress.echo(c.source)
           progress.echo("----------")
           progress.echo("name: " + span.name)
           progress.echo("kind: " + span.kind.toString)
           progress.echo("position: " + span.position.toString)
-          val tokens: List[Token] = span.content
+          val tokens: List[Token] = span.content filterNot (_.is_space)
           val s: List[String] = tokens.map(t => t.kind.toString + "-" + t.source)
           progress.echo(s.mkString("Tokens_sources(", ",", ")"))
           val cmd_states = snapshot.state.command_states(snapshot.version, c)
           progress.echo("Number of command states: " + cmd_states.length.toString())
           val markups_str = markups(cmd_states.head).map(_.name).mkString(",")
           progress.echo("Markups (for first cmd state): " + markups_str)
+          val parseResult = TokenParsers.parse(TokenParsers.tokenParser, tokens) match {
+            case TokenParsers.Success(result, next) => s"Success. Parsed: $result, left: $next"
+            case _                                  => "Failed"
+          }
+          progress.echo(s"Parse Result: $parseResult")
           progress.echo("##########")
-        }
+        })
       }))
 
     context.check_errors
+  }
+  /* ==== Parsing ====
+   * Try to map token streams into something that has more structure.
+   * */
 
-    // XXX THis is not valid anymore
-    // Print the lints
-    def report(node: ContextNode): Unit = node match {
-      case Annotated_Node(
-            children,
-            Lint_Context(ast_node, span, xml, lint_result)
-          ) => {
-        lint_result map (span.report(progress, _))
-        children map report
+  case class TokenReader(in: List[Token]) extends input.Reader[Token] {
+    def first: Token = in.head
+    def rest: TokenReader = TokenReader(in.tail)
+    def pos: input.Position = input.NoPosition
+    def atEnd: Boolean = in.isEmpty
+    def apply(in: List[Token]): TokenReader =
+      new TokenReader(in filterNot (_.is_space))
+  }
+
+  abstract class DocumentElement
+  abstract class Proof extends DocumentElement
+  case class Sorry() extends Proof
+  case class Apply() extends Proof
+  case class Unparsed() extends DocumentElement
+
+  object TokenParsers extends Parsers {
+    type Elem = Token
+
+    def pBool(p: Token => Boolean): Parser[Token] = new Parser[Token] {
+      def apply(in: Input): ParseResult[Token] = {
+        if (in.atEnd) Failure("Nothing to parse", in)
+        else {
+          val token = in.first
+          if (p(in.first)) Success(in.first, in.rest)
+          else Failure("failed", in)
+        }
       }
     }
 
-  }
+    def pSorry: Parser[Sorry] = pBool(_.is_command("sorry")) ~> success(Sorry())
 
-  /* ==== Parsing ====
-   * Working directly on the xml-markup is awkward. The idea is to construct an
-   * abstract structure to make defining lints easy. This could be a simplified
-   * AST that only tries to parse parts of the document that are relevant for
-   * the linter.
-   * */
+    def tokenParser: Parser[DocumentElement] = pSorry
+
+    def parse[T](p: Parser[T], in: List[Token]): ParseResult[T] =
+      p(TokenReader(in))
+  }
 
   /* Structures for parsing */
   // For now, just the index of the xml node
