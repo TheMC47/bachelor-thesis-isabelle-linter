@@ -17,6 +17,7 @@ lazy val `linter` = project
   .settings(
     isabelleProject := isabelle,
     isabelleCommand := "lint",
+    libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2"
   )
   .enablePlugins(IsabelleToolPlugin) // Tool wrapper and run
   .dependsOn(isabelle) // Compilation
