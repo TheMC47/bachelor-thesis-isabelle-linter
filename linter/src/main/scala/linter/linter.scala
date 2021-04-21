@@ -4,7 +4,6 @@ import java.io.PrintWriter
 
 import isabelle._
 import scala.collection.immutable
-import isabelle.XML.Elem
 
 object Linter {
 
@@ -133,8 +132,8 @@ object Linter {
 
     // For now, just find sorry
     def parse_one(t: XML.Tree): Option[Abstract_Node] = t match {
-      case Elem(SorryE(), _) => Some(Sorry)
-      case _                 => None
+      case XML.Elem(SorryE(), _) => Some(Sorry)
+      case _                     => None
     }
 
     val children = xml zip Stream.from(1) map {
