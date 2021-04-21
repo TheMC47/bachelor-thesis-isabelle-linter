@@ -1,7 +1,5 @@
 chapter ROOT
 
-session Example = Pure +
-  sessions
-    FOL
+session Example = HOL +
   theories
     Test (global)

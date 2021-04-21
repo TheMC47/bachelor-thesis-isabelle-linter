@@ -1,10 +1,6 @@
 theory Test 
-  imports IFOL
-
+  imports Main
 begin
-
-lemma "False"
-  sorry
 
 lemma conjE[simp]:
   assumes major: \<open>P \<and> Q\<close>
@@ -21,12 +17,6 @@ lemma ex1_equalsE: \<open>\<lbrakk>\<exists>!x. P(x); P(a); P(b)\<rbrakk> \<Long
   apply (erule ex1E)
   apply (rule trans)
    apply (rule_tac [2] sym)
-   apply (assumption | erule spec [THEN mp])+
-done
-
-axiomatization (* lint:disable *)
-  P :: "'a \<Rightarrow> o"
-  where
-  false: "False" 
+   sorry
 
 end
