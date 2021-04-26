@@ -26,11 +26,6 @@ object Linter {
     val tokens: List[Token] = span.content
     val s: List[String] = tokens.map(t => t.kind.toString + "-" + t.source)
     progress.echo(s.mkString("Tokens_sources(", ",", ")"))
-    val parseResult = TokenParsers.parse(TokenParsers.tokenParser, tokens) match {
-      case TokenParsers.Success(result, next) => s"Success. Parsed: $result, left: $next"
-      case _                                  => "Failed"
-    }
-    progress.echo(s"Parse Result: $parseResult")
     progress.echo("##########")
   }
 
@@ -38,10 +33,23 @@ object Linter {
       snapshot: Document.Snapshot,
       lints: List[Lint],
       progress: Progress = new Progress // TODO Is this needed?
-  ) {
+  ): List[Lint_Report] = {
     val commands = snapshot.node.commands
 
     commands.iterator foreach (debug_command(_, progress)) // Debugging
+
+    commands.iterator
+      .map(c => {
+        val parseResult = TokenParsers.parse(TokenParsers.tokenParser, c.span.content) match {
+          case TokenParsers.Success(result, TokenReader(Nil)) => result
+          case TokenParsers.Success(_, next)                  => error(s"Failed parsing. $next left")
+          case failure: TokenParsers.NoSuccess                => error(failure.msg)
+        }
+        lints.toStream.map(_.lint(parseResult)).find(_.isDefined).map(_.get)
+      })
+      .filter(_.isDefined)
+      .map(_.get)
+      .toList
   }
   /* ==== Parsing ====
    * Try to map token streams into something that has more structure.
@@ -75,5 +83,7 @@ object Linter {
       p(TokenReader(in filterNot (_.is_space)))
   }
 
+  object Print_Structure extends Lint {
+    def lint(elem: DocumentElement): Option[Lint_Report] = Some(s"Parsed: $elem")
   }
 }

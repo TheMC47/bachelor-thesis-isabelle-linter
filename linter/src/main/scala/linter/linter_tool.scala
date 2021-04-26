@@ -5,6 +5,10 @@ import scala.collection.immutable
 
 object Linter_Tool {
 
+  def report(lint_report: Linter.Lint_Report, progress: Progress): Unit = {
+    progress.echo(s"Lint: $lint_report")
+  }
+
   def lint(
       options: Options,
       logic: String,
@@ -32,7 +36,7 @@ object Linter_Tool {
       .foreach(_.process((args: Dump.Args) => {
         progress.echo("Processing theory " + args.print_node + " ...")
         val snapshot = args.snapshot
-        Linter.lint(snapshot, Nil, progress)
+        Linter.lint(snapshot, List(Linter.Print_Structure), progress).map(report(_, progress))
       }))
 
     context.check_errors
