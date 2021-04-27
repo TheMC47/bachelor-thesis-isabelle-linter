@@ -67,6 +67,8 @@ object Linter {
 
   abstract class DocumentElement
   abstract class Proof extends DocumentElement
+  case class Name(val content: String) extends DocumentElement
+  case class Atom(val content: String) extends DocumentElement
   case class Sorry() extends Proof
   case class Apply() extends Proof
   case class Unparsed(val tokens: List[Token]) extends DocumentElement
@@ -74,8 +76,26 @@ object Linter {
   object TokenParsers extends Parsers {
     type Elem = Token
 
-    def pCommand(name: String): Parser[Elem] = elem(name, _.is_command(name))
+    def is_atom(token: Token): Boolean = token.is_name ||
+      token.kind == Token.Kind.TYPE_IDENT ||
+      token.kind == Token.Kind.TYPE_VAR ||
+      token.kind == Token.Kind.VAR || // term_var
+      token.is_nat ||
+      token.is_float ||
+      token.is_keyword ||
+      token.kind == Token.Kind.CARTOUCHE
 
+    /* Token kinds */
+    def pCommand(name: String): Parser[Token] = elem(name, _.is_command(name))
+    def pKeyword(name: String): Parser[Token] = elem(name, _.is_keyword(name))
+    def pIdent: Parser[Token] = elem("ident", _.is_ident)
+    def pSymIdent: Parser[Token] = elem("sym_ident", _.is_sym_ident)
+    def pNat: Parser[Token] = elem("nat", _.is_nat)
+    def pString: Parser[Token] = elem("string", _.is_string)
+
+    /* Building blocks */
+    def pAtom: Parser[Atom] = elem("atom", is_atom) ^^ (token => Atom(token.content))
+    def pName: Parser[Name] = elem("name", _.is_name) ^^ (token => Name(token.content))
     def pSorry: Parser[Sorry] = pCommand("sorry") ^^^ Sorry()
 
     def pCatch: Parser[Unparsed] = elem("any", _ => true).* ^^ (Unparsed(_))
