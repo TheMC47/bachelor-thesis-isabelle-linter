@@ -69,6 +69,10 @@ object Linter {
   abstract class Proof extends DocumentElement
   case class Name(val content: String) extends DocumentElement
   case class Atom(val content: String) extends DocumentElement
+
+  trait Arg extends DocumentElement
+  case class Single_Arg(val atom: Atom) extends Arg
+  case class Args(val args: List[Arg]) extends Arg
   case class Sorry() extends Proof
   case class Apply() extends Proof
   case class Unparsed(val tokens: List[Token]) extends DocumentElement
@@ -93,9 +97,28 @@ object Linter {
     def pNat: Parser[Token] = elem("nat", _.is_nat)
     def pString: Parser[Token] = elem("string", _.is_string)
 
+    /* Surrounded parsers */
+    def pSurrounded[T, U](left: Parser[T], right: Parser[T])(center: Parser[U]): Parser[U] =
+      left ~> center <~ right
+    def pOpenSqBracket: Parser[Token] = pKeyword("[")
+    def pClosedSqBracket: Parser[Token] = pKeyword("]")
+    def pSqBracketed[U]: Parser[U] => Parser[U] = pSurrounded(pOpenSqBracket, pClosedSqBracket)
+
+    def pOpenParen: Parser[Token] = pKeyword("(")
+    def pClosedParen: Parser[Token] = pKeyword(")")
+    def pParened[U]: Parser[U] => Parser[U] = pSurrounded(pOpenParen, pClosedParen)
+
     /* Building blocks */
-    def pAtom: Parser[Atom] = elem("atom", is_atom) ^^ (token => Atom(token.content))
+    def pAtom(pred: Token => Boolean): Parser[Atom] =
+      elem("atom", (t => is_atom(t) && pred(t))) ^^ (token => Atom(token.content))
     def pName: Parser[Name] = elem("name", _.is_name) ^^ (token => Name(token.content))
+
+    /* Args */
+    def pArg: Parser[Arg] = pArg(_ => true)
+    // Atoms can be too general, so propagate a predicate
+    def pArg(pred: Token => Boolean): Parser[Arg] =
+      (pAtom(pred) ^^ Single_Arg) | ((pSqBracketed(pArg(pred).*) | pParened(pArg(pred).*)) ^^ Args)
+
     def pSorry: Parser[Sorry] = pCommand("sorry") ^^^ Sorry()
 
     def pCatch: Parser[Unparsed] = elem("any", _ => true).* ^^ (Unparsed(_))
