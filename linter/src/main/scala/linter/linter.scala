@@ -40,11 +40,7 @@ object Linter {
 
     commands.iterator
       .map(c => {
-        val parseResult = TokenParsers.parse(TokenParsers.tokenParser, c.span.content) match {
-          case TokenParsers.Success(result, TokenReader(Nil)) => result
-          case TokenParsers.Success(_, next)                  => error(s"Failed parsing. $next left")
-          case failure: TokenParsers.NoSuccess                => error(failure.msg)
-        }
+        val parseResult = parse_command(c)
         lints.toStream.map(_.lint(parseResult)).find(_.isDefined).map(_.get)
       })
       .filter(_.isDefined)
@@ -54,6 +50,13 @@ object Linter {
   /* ==== Parsing ====
    * Try to map token streams into something that has more structure.
    * */
+
+  def parse_command(command: Command): DocumentElement =
+    TokenParsers.parse(TokenParsers.tokenParser, command.span.content) match {
+      case TokenParsers.Success(result, TokenReader(Nil)) => result
+      case TokenParsers.Success(_, next)                  => error(s"Failed parsing. $next left")
+      case failure: TokenParsers.NoSuccess                => error(failure.msg)
+    }
 
   case class TokenReader(in: List[Token]) extends input.Reader[Token] {
     def first: Token = in.head
