@@ -1,4 +1,4 @@
 [submodule "isabelle"]
 	path = isabelle
-	url = https://github.com/seL4/isabelle
+	url = https://github.com/TheMC47/isabelle
 	ignore = dirty
