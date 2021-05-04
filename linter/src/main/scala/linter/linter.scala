@@ -58,10 +58,16 @@ object Linter {
       case failure: TokenParsers.NoSuccess                => error(failure.msg)
     }
 
-  case class TokenReader(in: List[Token]) extends input.Reader[Token] {
+  case class IndexPosition(val ts: List[Token], val i: Int) extends input.Position {
+    def column: Int = ts.slice(0, i + 1).map(_.content.size).sum
+    def line: Int = 0
+    protected def lineContents: String = (ts map { _.content }).mkString
+  }
+
+  case class TokenReader(in: List[Token], from: Int = 0) extends input.Reader[Token] {
     def first: Token = in.head
-    def rest: TokenReader = TokenReader(in.tail)
-    def pos: input.Position = input.NoPosition
+    def rest: TokenReader = TokenReader(in.tail, from + 1)
+    def pos: input.Position = IndexPosition(in, from)
     def atEnd: Boolean = in.isEmpty
   }
 
