@@ -53,9 +53,9 @@ object Linter {
 
   def parse_command(command: Command): DocumentElement =
     TokenParsers.parse(TokenParsers.tokenParser, command.span.content) match {
-      case TokenParsers.Success(result, TokenReader(Nil)) => result
-      case TokenParsers.Success(_, next)                  => error(s"Failed parsing. $next left")
-      case failure: TokenParsers.NoSuccess                => error(failure.msg)
+      case TokenParsers.Success(result, TokenReader(Nil, _)) => result
+      case TokenParsers.Success(_, next)                     => Failed(s"Failed parsing. $next left")
+      case failure: TokenParsers.NoSuccess                   => Failed(failure.msg)
     }
 
   case class IndexPosition(val ts: List[Token], val i: Int) extends input.Position {
@@ -82,6 +82,7 @@ object Linter {
   case class Sorry() extends Proof
   case class Apply() extends Proof
   case class Unparsed(val tokens: List[Token]) extends DocumentElement
+  case class Failed(val string: String) extends DocumentElement
 
   object TokenParsers extends Parsers {
     type Elem = Token
