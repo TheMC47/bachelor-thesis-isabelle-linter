@@ -79,13 +79,73 @@ object Linter {
   trait Arg extends DocumentElement
   case class Single_Arg(val atom: Atom) extends Arg
   case class Args(val args: List[Arg]) extends Arg
+
+  object Method {
+    /* Modifiers */
+    trait Modifier
+    object Modifier {
+      object Try extends Modifier // ?
+      object Rep1 extends Modifier // +
+      case class Restrict(val n: Int) extends Modifier // [n]
+    }
+
+    /* Combinators */
+
+    trait Combinator
+    object Combinator {
+      object Seq extends Combinator // ,
+      object Struct extends Combinator // ;
+      object Alt extends Combinator // |
+    }
+
+    def addModifier(method: Method, modifier: Option[Modifier]): Method = modifier match {
+      case None => method
+      case Some(value) =>
+        method match {
+          case Combined_Method(left, combinator, right, modifiers) =>
+            Combined_Method(left, combinator, right, modifiers :+ value)
+          case Simple_Method(name, modifiers, args) => Simple_Method(name, modifiers :+ value, args)
+        }
+    }
+  }
+
+  abstract class Method extends DocumentElement
+  case class Simple_Method(
+      val name: Name,
+      val modifiers: List[Method.Modifier] = Nil,
+      val args: Arg = Args(Nil)
+  ) extends Method
+
+  case class Combined_Method(
+      val left: Method,
+      val combinator: Method.Combinator,
+      val right: Method,
+      val modifiers: List[Method.Modifier] = Nil
+  ) extends Method
+
   case class Sorry() extends Proof
-  case class Apply() extends Proof
+  case class Apply(val method: Method) extends Proof
   case class Unparsed(val tokens: List[Token]) extends DocumentElement
   case class Failed(val string: String) extends DocumentElement
 
   object TokenParsers extends Parsers {
     type Elem = Token
+
+    /* Utilities */
+
+    /* Like chainl1, but parses q at least once.
+     * */
+    def chainl2[T](p: => Parser[T], q: => Parser[(T, T) => T]): Parser[T] = chainl2(p, p, q)
+
+    def chainl2[T, U](
+        first: => Parser[T],
+        p: => Parser[U],
+        q: => Parser[(T, U) => T]
+    ): Parser[T] = first ~ rep1(q ~ p) ^^ { case x ~ xs =>
+      xs.foldLeft(x) { case (a, f ~ b) =>
+        f(a, b)
+      }
+    }
 
     def is_atom(token: Token): Boolean = token.is_name ||
       token.kind == Token.Kind.TYPE_IDENT ||
@@ -93,7 +153,12 @@ object Linter {
       token.kind == Token.Kind.VAR || // term_var
       token.is_nat ||
       token.is_float ||
-      token.is_keyword ||
+      (token.is_keyword &&
+        !token.is_open_bracket &&
+        !token.is_close_bracket &&
+        !token.is_keyword("|") &&
+        !token.is_keyword(",") &&
+        !token.is_keyword(";")) ||
       token.kind == Token.Kind.CARTOUCHE
 
     /* Token kinds */
@@ -115,22 +180,68 @@ object Linter {
     def pClosedParen: Parser[Token] = pKeyword(")")
     def pParened[U]: Parser[U] => Parser[U] = pSurrounded(pOpenParen, pClosedParen)
 
-    /* Building blocks */
+    /* Simple elements */
+
+    // Atoms can be too general, so propagate a predicate
     def pAtom(pred: Token => Boolean): Parser[Atom] =
       elem("atom", (t => is_atom(t) && pred(t))) ^^ (token => Atom(token.content))
+
     def pName: Parser[Name] = elem("name", _.is_name) ^^ (token => Name(token.content))
 
-    /* Args */
     def pArg: Parser[Arg] = pArg(_ => true)
-    // Atoms can be too general, so propagate a predicate
     def pArg(pred: Token => Boolean): Parser[Arg] =
       (pAtom(pred) ^^ Single_Arg) | ((pSqBracketed(pArg(pred).*) | pParened(pArg(pred).*)) ^^ Args)
 
+    object MethodParsers {
+
+      /* Modifiers */
+      def pTry: Parser[Method.Modifier] = pKeyword("?") ^^^ Method.Modifier.Try
+      def pRep1: Parser[Method.Modifier] = pKeyword("+") ^^^ Method.Modifier.Rep1
+      def pRestrict: Parser[Method.Modifier] = pSqBracketed(
+        pNat ^^ (n => Method.Modifier.Restrict(n.content.toInt))
+      )
+      def pModifier: Parser[Method.Modifier] = pTry | pRep1 | pRestrict
+
+      /* Combinators  and combined methods */
+      def pCombinator(sep: String, comb: Method.Combinator): Parser[Method] =
+        chainl2(
+          pMethod,
+          pKeyword(sep) ^^^ { (left: Method, right: Method) => Combined_Method(left, comb, right) }
+        )
+
+      def pAlt: Parser[Method] = pCombinator("|", Method.Combinator.Alt)
+      def pSeq: Parser[Method] = pCombinator(",", Method.Combinator.Seq)
+      def pStruct: Parser[Method] = pCombinator(";", Method.Combinator.Struct)
+
+      /* Simple Methods */
+      def pMethodArg: Parser[Arg] = pArg { token =>
+        !(token.is_open_bracket ||
+          token.is_close_bracket ||
+          (token.is_keyword && "|;,+".exists(token.is_keyword)))
+      }
+
+      def pNameOnly: Parser[Simple_Method] = pName ^^ (name => Simple_Method(name))
+      def pNameArgs: Parser[Simple_Method] = pName ~ pMethodArg.* ^^ { case name ~ args =>
+        Simple_Method(name, args = Args(args))
+      }
+
+      /* Method */
+      def pMethod: Parser[Method] =
+        (pNameOnly | pParened(pMethods)) ~ pModifier.? ^^ { case body ~ modifier =>
+          Method.addModifier(body, modifier)
+        }
+
+      def pMethods: Parser[Method] = pAlt | pStruct | pSeq | pNameArgs | pMethod
+    }
+
+    /* Apply */
+    def pApply: Parser[Apply] = pCommand("apply") ~> MethodParsers.pMethod ^^ Apply
+
     def pSorry: Parser[Sorry] = pCommand("sorry") ^^^ Sorry()
 
-    def pCatch: Parser[Unparsed] = elem("any", _ => true).* ^^ (Unparsed(_))
+    def pCatch: Parser[Unparsed] = elem("any", _ => true).* ^^ Unparsed
 
-    def tokenParser: Parser[DocumentElement] = pSorry | pCatch
+    def tokenParser: Parser[DocumentElement] = pApply | pSorry | pCatch
 
     def parse[T](p: Parser[T], in: List[Token]): ParseResult[T] =
       p(TokenReader(in filterNot (_.is_space)))
