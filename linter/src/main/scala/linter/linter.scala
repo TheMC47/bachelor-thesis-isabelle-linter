@@ -39,14 +39,14 @@ object Linter {
     commands.iterator foreach (debug_command(_, progress)) // Debugging
 
     commands.iterator
-      .map(c => {
-        val parseResult = parse_command(c)
-        lints.toStream.map(_.lint(parseResult)).find(_.isDefined).map(_.get)
-      })
-      .filter(_.isDefined)
-      .map(_.get)
+      .map(lint_command(_, lints))
+      .flatten
       .toList
   }
+
+  def lint_command(command: Command, lints: List[Lint]): Option[Lint_Report] =
+    lints.toStream.map(_.lint(parse_command(command))).find(_.isDefined).flatten
+
   /* ==== Parsing ====
    * Try to map token streams into something that has more structure.
    * */
