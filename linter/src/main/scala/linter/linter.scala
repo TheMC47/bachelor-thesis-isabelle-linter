@@ -205,7 +205,7 @@ object Linter {
       /* Combinators  and combined methods */
       def pCombinator(sep: String, comb: Method.Combinator): Parser[Method] =
         chainl2(
-          pMethod,
+          pMethodInner,
           pKeyword(sep) ^^^ { (left: Method, right: Method) => Combined_Method(left, comb, right) }
         )
 
@@ -230,6 +230,14 @@ object Linter {
         (pNameOnly | pParened(pMethods)) ~ pModifier.? ^^ { case body ~ modifier =>
           Method.addModifier(body, modifier)
         }
+
+      // Following the railroad diagram, some methods like `(rule exI; auto)` will not get parsed
+      // since `rule exI` is not inside parentheses. pMethod should only be used for parsing first
+      // level methods.
+      def pMethodInner: Parser[Method] = (pNameArgs | pParened(pMethods)) ~ pModifier.? ^^ {
+        case body ~ modifier =>
+          Method.addModifier(body, modifier)
+      }
 
       def pMethods: Parser[Method] = pAlt | pStruct | pSeq | pNameArgs | pMethod
     }
