@@ -147,6 +147,8 @@ object Linter {
       }
     }
 
+    def anyOf[T](ps: => Seq[Parser[T]]): Parser[T] = ps.reduce(_ | _)
+
     def is_atom(token: Token): Boolean = token.is_name ||
       token.kind == Token.Kind.TYPE_IDENT ||
       token.kind == Token.Kind.TYPE_VAR ||
@@ -163,6 +165,8 @@ object Linter {
 
     /* Token kinds */
     def pCommand(name: String): Parser[Token] = elem(name, _.is_command(name))
+    def pCommand(names: String*): Parser[Token] = anyOf(names.map(pCommand(_)))
+
     def pKeyword(name: String): Parser[Token] = elem(name, _.is_keyword(name))
     def pIdent: Parser[Token] = elem("ident", _.is_ident)
     def pSymIdent: Parser[Token] = elem("sym_ident", _.is_sym_ident)
