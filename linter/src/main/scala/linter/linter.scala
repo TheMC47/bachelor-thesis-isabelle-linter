@@ -157,12 +157,7 @@ object Linter {
       token.kind == Token.Kind.VAR || // term_var
       token.is_nat ||
       token.is_float ||
-      (token.is_keyword &&
-        !token.is_open_bracket &&
-        !token.is_close_bracket &&
-        !token.is_keyword("|") &&
-        !token.is_keyword(",") &&
-        !token.is_keyword(";")) ||
+      token.is_keyword ||
       token.kind == Token.Kind.CARTOUCHE
 
     /* Token kinds */
