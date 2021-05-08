@@ -9,12 +9,6 @@ import scala.util.parsing.input
 
 object Linter {
 
-  type Lint_Report = String
-
-  abstract class Lint {
-    def lint(elem: DocumentElement): Option[Lint_Report]
-  }
-
   def debug_command(c: Command, progress: Progress): Unit = {
     // Print stuff that you think is useful
     val span = c.span
@@ -38,14 +32,23 @@ object Linter {
 
     commands.iterator foreach (debug_command(_, progress)) // Debugging
 
-    commands.iterator
+    val parsed_commands = commands.iterator.map(Parsed_Command)
+
+    parsed_commands
       .map(lint_command(_, lints))
       .flatten
       .toList
   }
 
   def lint_command(command: Command, lints: List[Lint]): Option[Lint_Report] =
-    lints.toStream.map(_.lint(parse_command(command))).find(_.isDefined).flatten
+    lint_command(Parsed_Command(command), lints)
+
+  def lint_command(command: Parsed_Command, lints: List[Lint]): Option[Lint_Report] =
+    lints.toStream.map(_.lint(command)).find(_.isDefined).flatten
+
+  case class Parsed_Command(val command: Command) {
+    lazy val parsed: DocumentElement = parse_command(command)
+  }
 
   /* ==== Parsing ====
    * Try to map token streams into something that has more structure.
@@ -123,7 +126,6 @@ object Linter {
       val modifiers: List[Method.Modifier] = Nil
   ) extends Method
 
-  case class Sorry() extends Proof
   case class Apply(val method: Method) extends Proof
   case class Unparsed(val tokens: List[Token]) extends DocumentElement
   case class Failed(val string: String) extends DocumentElement
@@ -147,6 +149,8 @@ object Linter {
       }
     }
 
+    def anyOf[T](ps: => Seq[Parser[T]]): Parser[T] = ps.reduce(_ | _)
+
     def is_atom(token: Token): Boolean = token.is_name ||
       token.kind == Token.Kind.TYPE_IDENT ||
       token.kind == Token.Kind.TYPE_VAR ||
@@ -163,6 +167,8 @@ object Linter {
 
     /* Token kinds */
     def pCommand(name: String): Parser[Token] = elem(name, _.is_command(name))
+    def pCommand(names: String*): Parser[Token] = anyOf(names.map(pCommand(_)))
+
     def pKeyword(name: String): Parser[Token] = elem(name, _.is_keyword(name))
     def pIdent: Parser[Token] = elem("ident", _.is_ident)
     def pSymIdent: Parser[Token] = elem("sym_ident", _.is_sym_ident)
@@ -245,17 +251,202 @@ object Linter {
     /* Apply */
     def pApply: Parser[Apply] = pCommand("apply") ~> MethodParsers.pMethod ^^ Apply
 
-    def pSorry: Parser[Sorry] = pCommand("sorry") ^^^ Sorry()
-
     def pCatch: Parser[Unparsed] = elem("any", _ => true).* ^^ Unparsed
 
-    def tokenParser: Parser[DocumentElement] = pApply | pSorry | pCatch
+    def tokenParser: Parser[DocumentElement] = pApply | pCatch
 
     def parse[T](p: Parser[T], in: List[Token]): ParseResult[T] =
       p(TokenReader(in filterNot (_.is_space)))
   }
 
-  object Print_Structure extends Lint {
-    def lint(elem: DocumentElement): Option[Lint_Report] = Some(s"Parsed: $elem")
+  /* ==== Linting ====
+   * A Lint needs to define a function, lint, that takes a Parsed_Command and optionally returns a
+   * Lint_Report. This is further refined by other abstract classes, that provide interafces that
+   * are more convenient.
+   * */
+
+  type Lint_Report = String
+
+  sealed trait Lint {
+    def lint(command: Parsed_Command): Option[Lint_Report]
+  }
+
+  /* Lints that use raw commands
+   * */
+  abstract class Raw_Command_Lint extends Lint {
+    def lint_command(command: Command): Option[Lint_Report]
+
+    def lint(command: Parsed_Command): Option[Lint_Report] = lint_command(command.command)
+  }
+
+  /* Lints that use a raw token stream
+   * */
+
+  abstract class Raw_Token_Stream_Lint extends Lint {
+    def lint_token_stream(tokens: List[Token]): Option[Lint_Report]
+
+    def lint(command: Parsed_Command): Option[Lint_Report] = lint_token_stream(
+      command.command.span.content
+    )
+  }
+
+  abstract class Illegal_Command_Lint(message: String, illegal_commands: List[String])
+      extends Raw_Token_Stream_Lint {
+    def lint_token_stream(tokens: List[Token]): Option[Lint_Report] = tokens match {
+      case head :: _ if (illegal_commands.contains(head.content)) => Some(message)
+      case _                                                      => None
+    }
+  }
+
+  object Unfinished_Proof
+      extends Illegal_Command_Lint("Unfinished proof", List("sorry", "oops", "\\<proof>"))
+
+  object Proof_Finder
+      extends Illegal_Command_Lint(
+        "Proof finder",
+        List(
+          "sledgehammer",
+          "solve_direct",
+          "try",
+          "try0"
+        )
+      )
+
+  object Counter_Example_Finder
+      extends Illegal_Command_Lint(
+        "Counter example finder",
+        List(
+          "nitpick",
+          "nunchaku",
+          "quickcheck"
+        )
+      )
+
+  object Bad_Style_Command
+      extends Illegal_Command_Lint("Bad style command", List("back", "apply_end"))
+
+  object Diagnostic_Command
+      extends Illegal_Command_Lint(
+        "Interactive diagnostic command",
+        List(
+          "ML_val",
+          "class_deps",
+          "code_deps",
+          "code_thms",
+          "find_consts",
+          "find_theorems",
+          "find_unused_assms",
+          "full_prf",
+          "help",
+          "locale_deps",
+          "prf",
+          "print_ML_antiquotations",
+          "print_abbrevs",
+          "print_antiquotations",
+          "print_attributes",
+          "print_bnfs",
+          "print_bundles",
+          "print_case_translations",
+          "print_cases",
+          "print_claset",
+          "print_classes",
+          "print_codeproc",
+          "print_codesetup",
+          "print_coercions",
+          "print_commands",
+          "print_context",
+          "print_definitions",
+          "print_defn_rules",
+          "print_facts",
+          "print_induct_rules",
+          "print_inductives",
+          "print_interps",
+          "print_locale",
+          "print_locales",
+          "print_methods",
+          "print_options",
+          "print_orders",
+          "print_quot_maps",
+          "print_quotconsts",
+          "print_quotients",
+          "print_quotientsQ3",
+          "print_quotmapsQ3",
+          "print_record",
+          "print_rules",
+          "print_simpset",
+          "print_state",
+          "print_statement",
+          "print_syntax",
+          "print_term_bindings",
+          "print_theorems",
+          "print_theory",
+          "print_trans_rules",
+          "smt_status",
+          "thm_deps",
+          "thm_oracles",
+          "thy_deps",
+          "unused_thms",
+          "value",
+          "values",
+          "welcome",
+          "term",
+          "prop",
+          "thm",
+          "typ"
+        )
+      )
+
+  /* Lints that are parsers
+   * */
+  abstract class Parser_Lint extends Lint {
+
+    def parser: TokenParsers.Parser[Lint_Report]
+
+    def lint(command: Parsed_Command): Option[Lint_Report] =
+      TokenParsers.parse(parser, command.command.span.content) match {
+        case TokenParsers.Success(result, _) => Some(result)
+        case _                               => None
+      }
+  }
+
+  object Short_Name extends Parser_Lint {
+    import TokenParsers._
+
+    def parser: TokenParsers.Parser[Lint_Report] =
+      pCommand("fun", "definition") ~> elem("ident", _.content.size < 2) ^^ (token =>
+        s"""Name "${token.content}" too short"""
+      )
+  }
+
+  /* Lints that use the parsed document structure
+   * */
+  abstract class Structure_Lint extends Lint {
+
+    def lint_apply(method: Method): Option[Lint_Report] = None
+
+    def lint_proof(proof: Proof): Option[Lint_Report] = proof match {
+      case Apply(method) => lint_apply(method)
+    }
+
+    def lint_document_element(elem: DocumentElement): Option[Lint_Report] = elem match {
+      case p: Proof => lint_proof(p)
+      case _        => None
+    }
+
+    def lint(command: Parsed_Command): Option[Lint_Report] = lint_document_element(command.parsed)
+
+  }
+
+  object Implicit_Rule extends Structure_Lint {
+    override def lint_apply(method: Method): Option[Lint_Report] = method match {
+      case Simple_Method(Name("rule"), _, Args(Nil)) => Some("Do not use implicit rule")
+      case Combined_Method(left, _, right, _)        => lint_apply(left).orElse(lint_apply(right))
+      case _                                         => None
+    }
+  }
+
+  object Print_Structure extends Structure_Lint {
+    override def lint_document_element(elem: DocumentElement): Option[Lint_Report] =
+      Some(s"Parsed: $elem")
   }
 }
