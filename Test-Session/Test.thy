@@ -46,6 +46,16 @@ lemma ex1_equalsE: \<open>\<lbrakk>\<exists>!x. P(x); P(a); P(b)\<rbrakk> \<Long
    apply (rule_tac [2] sym)
   sorry
 
+lemma "A \<longrightarrow> A"
+proof auto
+qed
+
+lemma "A \<longrightarrow> A"
+proof
+  assume a: A
+  show A by(rule a)
+qed
+
 axiomatization (* lint:disable *)
   P :: "'a \<Rightarrow> bool"
   where
