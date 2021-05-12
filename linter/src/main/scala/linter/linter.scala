@@ -127,6 +127,7 @@ object Linter {
   ) extends Method
 
   case class Apply(val method: Method) extends Proof
+  case class Isar_Proof(val method: Option[Method]) extends Proof
   case class Unparsed(val tokens: List[Token]) extends DocumentElement
   case class Failed(val string: String) extends DocumentElement
 
@@ -246,9 +247,12 @@ object Linter {
     /* Apply */
     def pApply: Parser[Apply] = pCommand("apply") ~> MethodParsers.pMethod ^^ Apply
 
+    /* Isar-Proof */
+    def pIsarProof: Parser[Isar_Proof] = pCommand("proof") ~> MethodParsers.pMethod.? ^^ Isar_Proof
+
     def pCatch: Parser[Unparsed] = elem("any", _ => true).* ^^ Unparsed
 
-    def tokenParser: Parser[DocumentElement] = pApply | pCatch
+    def tokenParser: Parser[DocumentElement] = pApply | pIsarProof | pCatch
 
     def parse[T](p: Parser[T], in: List[Token]): ParseResult[T] =
       p(TokenReader(in filterNot (_.is_space)))
@@ -419,8 +423,11 @@ object Linter {
 
     def lint_apply(method: Method): Option[Lint_Report] = None
 
+    def lint_isar_proof(method: Option[Method]): Option[Lint_Report] = None
+
     def lint_proof(proof: Proof): Option[Lint_Report] = proof match {
-      case Apply(method) => lint_apply(method)
+      case Apply(method)      => lint_apply(method)
+      case Isar_Proof(method) => lint_isar_proof(method)
     }
 
     def lint_document_element(elem: DocumentElement): Option[Lint_Report] = elem match {
@@ -438,6 +445,18 @@ object Linter {
       case Combined_Method(left, _, right, _)        => lint_apply(left).orElse(lint_apply(right))
       case _                                         => None
     }
+  }
+
+  object Simple_Isar_Method extends Structure_Lint {
+
+    def is_complex(method: Method): Boolean = method match {
+      case Simple_Method(Name(name), _, _)    => name == "auto"
+      case Combined_Method(left, _, right, _) => is_complex(left) || is_complex(right)
+    }
+
+    override def lint_isar_proof(method: Option[Method]): Option[Lint_Report] =
+      if (method.isDefined && is_complex(method.get)) Some("Keep initial proof methods simple")
+      else None
   }
 
   object Print_Structure extends Structure_Lint {
