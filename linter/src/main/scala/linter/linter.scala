@@ -250,6 +250,13 @@ object Linter {
     /* Isar-Proof */
     def pIsarProof: Parser[Isar_Proof] = pCommand("proof") ~> MethodParsers.pMethod.? ^^ Isar_Proof
 
+    /* Lemma attributes */
+    def pAttribute: Parser[String] = pIdent ^^ { _.content }
+
+    def pAttributes: Parser[List[String]] =
+      chainl1[List[String]](pAttribute ^^ { List(_) }, pKeyword(",") ^^^ { _ ::: _ })
+
+    /* Putting things together.. */
     def pCatch: Parser[Unparsed] = elem("any", _ => true).* ^^ Unparsed
 
     def tokenParser: Parser[DocumentElement] = pApply | pIsarProof | pCatch
@@ -415,6 +422,24 @@ object Linter {
       pCommand("fun", "definition") ~> elem("ident", _.content.size < 2) ^^ (token =>
         s"""Name "${token.content}" too short"""
       )
+  }
+
+  object Unnamed_Lemma_Simplifier_Attributes extends Parser_Lint {
+    import TokenParsers._
+
+    override def parser: Parser[Lint_Report] =
+      pCommand("lemma") ~> pSqBracketed(pAttributes).withFilter(
+        _.exists(List("simp", "cong").contains(_))
+      ) ^^^ "Don't use simplifier attributes on unnamed lemmas"
+  }
+
+  object Lemma_Transforming_Attributes extends Parser_Lint {
+    import TokenParsers._
+
+    override def parser: Parser[Lint_Report] =
+      (pCommand("lemma") ~ pIdent.?) ~> pSqBracketed(pAttributes).withFilter(
+        _.exists(List("simplified", "rule_format").contains(_))
+      ) ^^^ "Don't use transforming attributes on lemmas"
   }
 
   /* Lints that use the parsed document structure
