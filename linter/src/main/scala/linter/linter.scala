@@ -296,6 +296,16 @@ object Linter {
     )
   }
 
+  object Axiomatization_With_Where extends Raw_Token_Stream_Lint {
+
+    def lint_token_stream(tokens: List[Token]): Option[Lint_Report] = tokens match {
+      case Token(Token.Kind.COMMAND, "axiomatization") :: next
+          if next.exists(_.content == "where") =>
+        Some("Don't use axiomatization")
+      case _ => None
+    }
+  }
+
   abstract class Illegal_Command_Lint(message: String, illegal_commands: List[String])
       extends Raw_Token_Stream_Lint {
     def lint_token_stream(tokens: List[Token]): Option[Lint_Report] = tokens match {
