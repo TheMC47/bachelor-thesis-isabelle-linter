@@ -192,24 +192,24 @@ object Linter {
       token.kind == Token.Kind.CARTOUCHE
 
     /* Token kinds */
-    def pCommand(name: String): Parser[Token] = elem(name, _.is_command(name))
-    def pCommand(names: String*): Parser[Token] = anyOf(names.map(pCommand(_)))
+    def pCommand(name: String): Parser[Elem] = elem(name, _.is_command(name))
+    def pCommand(names: String*): Parser[Elem] = anyOf(names.map(pCommand(_)))
 
-    def pKeyword(name: String): Parser[Token] = elem(name, _.is_keyword(name))
-    def pIdent: Parser[Token] = elem("ident", _.is_ident)
-    def pSymIdent: Parser[Token] = elem("sym_ident", _.is_sym_ident)
-    def pNat: Parser[Token] = elem("nat", _.is_nat)
-    def pString: Parser[Token] = elem("string", _.is_string)
+    def pKeyword(name: String): Parser[Elem] = elem(name, _.is_keyword(name))
+    def pIdent: Parser[Elem] = elem("ident", _.is_ident)
+    def pSymIdent: Parser[Elem] = elem("sym_ident", _.is_sym_ident)
+    def pNat: Parser[Elem] = elem("nat", _.is_nat)
+    def pString: Parser[Elem] = elem("string", _.is_string)
 
     /* Surrounded parsers */
     def pSurrounded[T, U](left: Parser[T], right: Parser[T])(center: Parser[U]): Parser[U] =
       left ~> center <~ right
-    def pOpenSqBracket: Parser[Token] = pKeyword("[")
-    def pClosedSqBracket: Parser[Token] = pKeyword("]")
+    def pOpenSqBracket: Parser[Elem] = pKeyword("[")
+    def pClosedSqBracket: Parser[Elem] = pKeyword("]")
     def pSqBracketed[U]: Parser[U] => Parser[U] = pSurrounded(pOpenSqBracket, pClosedSqBracket)
 
-    def pOpenParen: Parser[Token] = pKeyword("(")
-    def pClosedParen: Parser[Token] = pKeyword(")")
+    def pOpenParen: Parser[Elem] = pKeyword("(")
+    def pClosedParen: Parser[Elem] = pKeyword(")")
     def pParened[U]: Parser[U] => Parser[U] = pSurrounded(pOpenParen, pClosedParen)
 
     /* Simple elements */
@@ -291,7 +291,7 @@ object Linter {
 
     def tokenParser: Parser[DocumentElement] = pApply | pIsarProof | pCatch
 
-    def parse[T](p: Parser[T], in: List[Token]): ParseResult[T] =
+    def parse[T](p: Parser[T], in: List[Elem]): ParseResult[T] =
       p(TokenReader(in filterNot (_.is_space)))
   }
 
