@@ -32,7 +32,7 @@ object Linter {
 
     commands.iterator foreach (debug_command(_, progress)) // Debugging
 
-    val parsed_commands = commands.iterator.map(Parsed_Command)
+    val parsed_commands = commands.iterator.map(Parsed_Command(_, snapshot))
 
     parsed_commands
       .map(lint_command(_, lints))
@@ -40,14 +40,44 @@ object Linter {
       .toList
   }
 
-  def lint_command(command: Command, lints: List[Lint]): Option[Lint_Report] =
-    lint_command(Parsed_Command(command), lints)
+  def lint_command(
+      command: Command,
+      snapshot: Document.Snapshot,
+      lints: List[Lint]
+  ): Option[Lint_Report] =
+    lint_command(Parsed_Command(command, snapshot), lints)
 
   def lint_command(command: Parsed_Command, lints: List[Lint]): Option[Lint_Report] =
     lints.toStream.map(_.lint(command)).find(_.isDefined).flatten
 
-  case class Parsed_Command(val command: Command) {
+  case class Parsed_Command(val command: Command, snapshot: Document.Snapshot) {
     lazy val parsed: DocumentElement = parse_command(command)
+
+    /* Position Info */
+    val pos: Option[Line.Position] =
+      for (node_pos <- snapshot.find_command_position(command.id, 0))
+        yield node_pos.pos
+
+    val range: Option[Line.Range] =
+      for (start <- pos)
+        yield Line.Range(start, start.advance(command.source))
+
+    /* Tokens with position */
+
+    def generate_positions(
+        tokens: List[Token],
+        start_position: Line.Position
+    ): List[(Token, Line.Range)] = tokens match {
+      case head :: next => {
+        val end_position = start_position.advance(head.source)
+        (head, Line.Range(start_position, end_position)) :: generate_positions(next, end_position)
+      }
+      case Nil => Nil
+    }
+
+    val tokens: Option[List[(Token, Line.Range)]] =
+      for (start <- pos)
+        yield generate_positions(command.span.content, start)
   }
 
   /* ==== Parsing ====
