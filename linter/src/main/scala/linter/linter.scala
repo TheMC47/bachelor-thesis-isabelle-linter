@@ -50,55 +50,95 @@ object Linter {
   def lint_command(command: Parsed_Command, lints: List[Lint]): Option[Lint_Report] =
     lints.toStream.map(_.lint(command)).find(_.isDefined).flatten
 
+  case class Ranged_Token(val token: Token, range: Line.Range) {
+    /* Redefining functions from Token, to save a level of inderection */
+
+    val content: String = token.content
+
+    def is_command: Boolean = token.is_command
+    def is_command(name: String): Boolean = token.is_command(name)
+    def is_keyword: Boolean = token.is_keyword
+    def is_keyword(name: String): Boolean = token.is_keyword(name)
+    def is_keyword(name: Char): Boolean = token.is_keyword(name)
+    def is_delimiter: Boolean = token.is_delimiter
+    def is_ident: Boolean = token.is_ident
+    def is_sym_ident: Boolean = token.is_sym_ident
+    def is_string: Boolean = token.is_string
+    def is_nat: Boolean = token.is_nat
+    def is_float: Boolean = token.is_float
+    def is_name: Boolean = token.is_name
+    def is_embedded: Boolean = token.is_embedded
+    def is_text: Boolean = token.is_text
+    def is_space: Boolean = token.is_space
+    def is_informal_comment: Boolean = token.is_informal_comment
+    def is_formal_comment: Boolean = token.is_formal_comment
+    def is_marker: Boolean = token.is_marker
+    def is_comment: Boolean = token.is_comment
+    def is_ignored: Boolean = token.is_ignored
+    def is_proper: Boolean = token.is_proper
+    def is_error: Boolean = token.is_error
+    def is_unparsed: Boolean = token.is_unparsed
+    def is_unfinished: Boolean = token.is_unfinished
+    def is_open_bracket: Boolean = token.is_open_bracket
+    def is_close_bracket: Boolean = token.is_close_bracket
+    def is_begin: Boolean = token.is_begin
+    def is_end: Boolean = token.is_end
+    def is_begin_or_command: Boolean = token.is_begin_or_command
+    def is_system_name: Boolean = token.is_system_name
+  }
+
   case class Parsed_Command(val command: Command, snapshot: Document.Snapshot) {
-    lazy val parsed: DocumentElement = parse_command(command)
-
     /* Position Info */
-    val pos: Option[Line.Position] =
-      for (node_pos <- snapshot.find_command_position(command.id, 0))
-        yield node_pos.pos
 
-    val range: Option[Line.Range] =
-      for (start <- pos)
-        yield Line.Range(start, start.advance(command.source))
+    // We're certain that we don't receive a none here, since we're only using commands that are
+    // guaranteed to be in the state.
+    val node_pos: Line.Node_Position = snapshot.find_command_position(command.id, 0).get
+
+    val start_position: Line.Position = node_pos.pos
+
+    val range: Line.Range =
+      Line.Range(start_position, start_position.advance(command.source))
 
     /* Tokens with position */
 
     def generate_positions(
         tokens: List[Token],
         start_position: Line.Position
-    ): List[(Token, Line.Range)] = tokens match {
+    ): List[Ranged_Token] = tokens match {
       case head :: next => {
         val end_position = start_position.advance(head.source)
-        (head, Line.Range(start_position, end_position)) :: generate_positions(next, end_position)
+        (Ranged_Token(head, Line.Range(start_position, end_position))) :: generate_positions(
+          next,
+          end_position
+        )
       }
       case Nil => Nil
     }
 
-    val tokens: Option[List[(Token, Line.Range)]] =
-      for (start <- pos)
-        yield generate_positions(command.span.content, start)
+    val tokens: List[Ranged_Token] =
+      generate_positions(command.span.content, start_position)
+
+    /* ==== Parsing ====
+     * Try to map token streams into something that has more structure.
+     * */
+
+    lazy val parsed: DocumentElement =
+      TokenParsers.parse(TokenParsers.tokenParser, tokens) match {
+        case TokenParsers.Success(result, TokenReader(Nil, _)) => result
+        case TokenParsers.Success(_, next)                     => Failed(s"Failed parsing. $next left")
+        case failure: TokenParsers.NoSuccess                   => Failed(failure.msg)
+      }
+
   }
 
-  /* ==== Parsing ====
-   * Try to map token streams into something that has more structure.
-   * */
-
-  def parse_command(command: Command): DocumentElement =
-    TokenParsers.parse(TokenParsers.tokenParser, command.span.content) match {
-      case TokenParsers.Success(result, TokenReader(Nil, _)) => result
-      case TokenParsers.Success(_, next)                     => Failed(s"Failed parsing. $next left")
-      case failure: TokenParsers.NoSuccess                   => Failed(failure.msg)
-    }
-
-  case class IndexPosition(val ts: List[Token], val i: Int) extends input.Position {
+  case class IndexPosition(val ts: List[Ranged_Token], val i: Int) extends input.Position {
     def column: Int = ts.slice(0, i + 1).map(_.content.size).sum
     def line: Int = 0
     protected def lineContents: String = (ts map { _.content }).mkString
   }
 
-  case class TokenReader(in: List[Token], from: Int = 0) extends input.Reader[Token] {
-    def first: Token = in.head
+  case class TokenReader(in: List[Ranged_Token], from: Int = 0) extends input.Reader[Ranged_Token] {
+    def first: Ranged_Token = in.head
     def rest: TokenReader = TokenReader(in.tail, from + 1)
     def pos: input.Position = IndexPosition(in, from)
     def atEnd: Boolean = in.isEmpty
@@ -158,11 +198,11 @@ object Linter {
 
   case class Apply(val method: Method) extends Proof
   case class Isar_Proof(val method: Option[Method]) extends Proof
-  case class Unparsed(val tokens: List[Token]) extends DocumentElement
+  case class Unparsed(val tokens: List[Ranged_Token]) extends DocumentElement
   case class Failed(val string: String) extends DocumentElement
 
   object TokenParsers extends Parsers {
-    type Elem = Token
+    type Elem = Ranged_Token
 
     /* Utilities */
 
@@ -191,6 +231,8 @@ object Linter {
       token.is_keyword ||
       token.kind == Token.Kind.CARTOUCHE
 
+    def is_atom(rtoken: Ranged_Token): Boolean = is_atom(rtoken.token)
+
     /* Token kinds */
     def pCommand(name: String): Parser[Elem] = elem(name, _.is_command(name))
     def pCommand(names: String*): Parser[Elem] = anyOf(names.map(pCommand(_)))
@@ -216,7 +258,7 @@ object Linter {
 
     // Atoms can be too general, so propagate a predicate
     def pAtom(pred: Token => Boolean): Parser[Atom] =
-      elem("atom", (t => is_atom(t) && pred(t))) ^^ (token => Atom(token.content))
+      elem("atom", (t => is_atom(t) && pred(t.token))) ^^ (token => Atom(token.content))
 
     def pName: Parser[Name] = elem("name", _.is_name) ^^ (token => Name(token.content))
 
@@ -449,7 +491,7 @@ object Linter {
     def parser: TokenParsers.Parser[Lint_Report]
 
     def lint(command: Parsed_Command): Option[Lint_Report] =
-      TokenParsers.parse(parser, command.command.span.content) match {
+      TokenParsers.parse(parser, command.tokens) match {
         case TokenParsers.Success(result, _) => Some(result)
         case _                               => None
       }
