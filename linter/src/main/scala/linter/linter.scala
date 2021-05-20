@@ -55,6 +55,8 @@ object Linter {
 
     val content: String = token.content
 
+    val source: String = token.source
+
     def is_command: Boolean = token.is_command
     def is_command(name: String): Boolean = token.is_command(name)
     def is_keyword: Boolean = token.is_keyword
@@ -85,6 +87,17 @@ object Linter {
     def is_end: Boolean = token.is_end
     def is_begin_or_command: Boolean = token.is_begin_or_command
     def is_system_name: Boolean = token.is_system_name
+  }
+
+  object Ranged_Token {
+
+    def unapply(r: Ranged_Token): Option[(Token.Kind.Value, String, Line.Range)] =
+      Some(r.token.kind, r.source, r.range)
+
+    def list_range(ranges: List[Line.Range]): Line.Range = ranges match {
+      case rs @ (head :: _) => Line.Range(head.start, rs.last.stop)
+      case Nil              => Line.Range.zero
+    }
   }
 
   case class Parsed_Command(val command: Command, snapshot: Document.Snapshot) {
@@ -144,14 +157,31 @@ object Linter {
     def atEnd: Boolean = in.isEmpty
   }
 
-  abstract class DocumentElement
-  abstract class Proof extends DocumentElement
-  case class Name(val content: String) extends DocumentElement
-  case class Atom(val content: String) extends DocumentElement
+  abstract class DocumentElement(val range: Line.Range)
+  abstract class Proof(override val range: Line.Range) extends DocumentElement(range)
+  case class Name(val content: String, override val range: Line.Range)
+      extends DocumentElement(range)
+  object Name {
+    def apply(token: Ranged_Token): Name = Name(token.content, token.range)
+  }
 
-  trait Arg extends DocumentElement
-  case class Single_Arg(val atom: Atom) extends Arg
-  case class Args(val args: List[Arg]) extends Arg
+  case class Atom(val content: String, override val range: Line.Range)
+      extends DocumentElement(range)
+  object Atom {
+    def apply(token: Ranged_Token): Atom = Atom(token.content, token.range)
+  }
+
+  abstract class Arg(override val range: Line.Range) extends DocumentElement(range)
+
+  case class Single_Arg(val atom: Atom, override val range: Line.Range) extends Arg(range)
+  object Single_Arg {
+    def apply(atom: Atom): Single_Arg = Single_Arg(atom, atom.range)
+  }
+
+  case class Args(val args: List[Arg], override val range: Line.Range) extends Arg(range)
+  object Args {
+    def apply(args: List[Arg]): Args = Args(args, Ranged_Token.list_range(args.map(_.range)))
+  }
 
   object Method {
     /* Modifiers */
@@ -175,31 +205,51 @@ object Linter {
       case None => method
       case Some(value) =>
         method match {
-          case Combined_Method(left, combinator, right, modifiers) =>
-            Combined_Method(left, combinator, right, modifiers :+ value)
-          case Simple_Method(name, modifiers, args) => Simple_Method(name, modifiers :+ value, args)
+          case Combined_Method(left, combinator, right, range, modifiers) =>
+            Combined_Method(left, combinator, right, range, modifiers :+ value)
+          case Simple_Method(name, range, modifiers, args) =>
+            Simple_Method(name, range, modifiers :+ value, args)
         }
     }
   }
 
-  abstract class Method extends DocumentElement
+  abstract class Method(override val range: Line.Range) extends DocumentElement(range)
+
   case class Simple_Method(
       val name: Name,
+      override val range: Line.Range,
       val modifiers: List[Method.Modifier] = Nil,
-      val args: Arg = Args(Nil)
-  ) extends Method
+      val args: Arg = Args(Nil, Line.Range.zero)
+  ) extends Method(range)
+  object Simple_Method {
+
+    def apply(
+        name: Name,
+        args: Arg
+    ): Simple_Method =
+      Simple_Method(name, name.range, Nil, args)
+
+    def apply(name: Name): Simple_Method =
+      Simple_Method(name, name.range, Nil, Args(Nil, Line.Range.zero))
+  }
 
   case class Combined_Method(
       val left: Method,
       val combinator: Method.Combinator,
       val right: Method,
+      override val range: Line.Range,
       val modifiers: List[Method.Modifier] = Nil
-  ) extends Method
+  ) extends Method(range)
+  object Combined_Method {
+    def apply(left: Method, combinator: Method.Combinator, right: Method): Combined_Method =
+      Combined_Method(left, combinator, right, Line.Range(left.range.start, right.range.stop), Nil)
+  }
 
-  case class Apply(val method: Method) extends Proof
-  case class Isar_Proof(val method: Option[Method]) extends Proof
-  case class Unparsed(val tokens: List[Ranged_Token]) extends DocumentElement
-  case class Failed(val string: String) extends DocumentElement
+  case class Apply(val method: Method, override val range: Line.Range) extends Proof(range)
+  case class Isar_Proof(val method: Option[Method], override val range: Line.Range)
+      extends Proof(range)
+  case class Unparsed(val tokens: List[Ranged_Token]) extends DocumentElement(Line.Range.zero)
+  case class Failed(val string: String) extends DocumentElement(Line.Range.zero)
 
   object TokenParsers extends Parsers {
     type Elem = Ranged_Token
@@ -258,13 +308,16 @@ object Linter {
 
     // Atoms can be too general, so propagate a predicate
     def pAtom(pred: Token => Boolean): Parser[Atom] =
-      elem("atom", (t => is_atom(t) && pred(t.token))) ^^ (token => Atom(token.content))
+      elem("atom", (t => is_atom(t) && pred(t.token))) ^^ (Atom(_))
+    def pName: Parser[Name] = elem("name", _.is_name) ^^ (Name(_))
 
-    def pName: Parser[Name] = elem("name", _.is_name) ^^ (token => Name(token.content))
+    /* Args */
+    def pSingle_Arg(pred: Token => Boolean): Parser[Single_Arg] = pAtom(pred) ^^ (Single_Arg(_))
+    def pArgs(pred: Token => Boolean): Parser[Args] =
+      (pSqBracketed(pArg(pred).*) | pParened(pArg(pred).*)) ^^ (Args(_))
 
     def pArg: Parser[Arg] = pArg(_ => true)
-    def pArg(pred: Token => Boolean): Parser[Arg] =
-      (pAtom(pred) ^^ Single_Arg) | ((pSqBracketed(pArg(pred).*) | pParened(pArg(pred).*)) ^^ Args)
+    def pArg(pred: Token => Boolean): Parser[Arg] = pSingle_Arg(pred) | pArgs(pred)
 
     object MethodParsers {
 
@@ -317,10 +370,17 @@ object Linter {
     }
 
     /* Apply */
-    def pApply: Parser[Apply] = pCommand("apply") ~> MethodParsers.pMethod ^^ Apply
+    def pApply: Parser[Apply] = pCommand("apply") ~ MethodParsers.pMethod ^^ {
+      case applyToken ~ method =>
+        Apply(method, Line.Range(applyToken.range.start, method.range.stop))
+    }
 
     /* Isar-Proof */
-    def pIsarProof: Parser[Isar_Proof] = pCommand("proof") ~> MethodParsers.pMethod.? ^^ Isar_Proof
+    def pIsarProof: Parser[Isar_Proof] = pCommand("proof") ~ MethodParsers.pMethod.? ^^ {
+      case proofToken ~ Some(method) =>
+        Isar_Proof(Some(method), Line.Range(proofToken.range.start, method.range.stop))
+      case proofToken ~ None => Isar_Proof(None, proofToken.range)
+    }
 
     /* Lemma attributes */
     def pAttribute: Parser[String] = pIdent ^^ { _.content }
@@ -548,17 +608,17 @@ object Linter {
 
   object Implicit_Rule extends Structure_Lint {
     override def lint_apply(method: Method): Option[Lint_Report] = method match {
-      case Simple_Method(Name("rule"), _, Args(Nil)) => Some("Do not use implicit rule")
-      case Combined_Method(left, _, right, _)        => lint_apply(left).orElse(lint_apply(right))
-      case _                                         => None
+      case Simple_Method(Name("rule", _), _, _, Args(Nil, _)) => Some("Do not use implicit rule")
+      case Combined_Method(left, _, right, _, _)              => lint_apply(left).orElse(lint_apply(right))
+      case _                                                  => None
     }
   }
 
   object Simple_Isar_Method extends Structure_Lint {
 
     def is_complex(method: Method): Boolean = method match {
-      case Simple_Method(Name(name), _, _)    => name == "auto"
-      case Combined_Method(left, _, right, _) => is_complex(left) || is_complex(right)
+      case Simple_Method(Name(name, _), _, _, _) => name == "auto"
+      case Combined_Method(left, _, right, _, _) => is_complex(left) || is_complex(right)
     }
 
     override def lint_isar_proof(method: Option[Method]): Option[Lint_Report] =
