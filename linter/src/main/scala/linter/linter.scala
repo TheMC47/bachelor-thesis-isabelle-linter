@@ -32,7 +32,7 @@ object Linter {
 
     commands.iterator foreach (debug_command(_, progress)) // Debugging
 
-    val parsed_commands = commands.iterator.map(Parsed_Command)
+    val parsed_commands = commands.iterator.map(Parsed_Command(_, snapshot))
 
     parsed_commands
       .map(lint_command(_, lints))
@@ -40,48 +40,148 @@ object Linter {
       .toList
   }
 
-  def lint_command(command: Command, lints: List[Lint]): Option[Lint_Report] =
-    lint_command(Parsed_Command(command), lints)
+  def lint_command(
+      command: Command,
+      snapshot: Document.Snapshot,
+      lints: List[Lint]
+  ): Option[Lint_Report] =
+    lint_command(Parsed_Command(command, snapshot), lints)
 
   def lint_command(command: Parsed_Command, lints: List[Lint]): Option[Lint_Report] =
     lints.toStream.map(_.lint(command)).find(_.isDefined).flatten
 
-  case class Parsed_Command(val command: Command) {
-    lazy val parsed: DocumentElement = parse_command(command)
+  case class Ranged_Token(val token: Token, range: Line.Range) {
+    /* Redefining functions from Token, to save a level of inderection */
+
+    val content: String = token.content
+
+    val source: String = token.source
+
+    def is_command: Boolean = token.is_command
+    def is_command(name: String): Boolean = token.is_command(name)
+    def is_keyword: Boolean = token.is_keyword
+    def is_keyword(name: String): Boolean = token.is_keyword(name)
+    def is_keyword(name: Char): Boolean = token.is_keyword(name)
+    def is_delimiter: Boolean = token.is_delimiter
+    def is_ident: Boolean = token.is_ident
+    def is_sym_ident: Boolean = token.is_sym_ident
+    def is_string: Boolean = token.is_string
+    def is_nat: Boolean = token.is_nat
+    def is_float: Boolean = token.is_float
+    def is_name: Boolean = token.is_name
+    def is_embedded: Boolean = token.is_embedded
+    def is_text: Boolean = token.is_text
+    def is_space: Boolean = token.is_space
+    def is_informal_comment: Boolean = token.is_informal_comment
+    def is_formal_comment: Boolean = token.is_formal_comment
+    def is_marker: Boolean = token.is_marker
+    def is_comment: Boolean = token.is_comment
+    def is_ignored: Boolean = token.is_ignored
+    def is_proper: Boolean = token.is_proper
+    def is_error: Boolean = token.is_error
+    def is_unparsed: Boolean = token.is_unparsed
+    def is_unfinished: Boolean = token.is_unfinished
+    def is_open_bracket: Boolean = token.is_open_bracket
+    def is_close_bracket: Boolean = token.is_close_bracket
+    def is_begin: Boolean = token.is_begin
+    def is_end: Boolean = token.is_end
+    def is_begin_or_command: Boolean = token.is_begin_or_command
+    def is_system_name: Boolean = token.is_system_name
   }
 
-  /* ==== Parsing ====
-   * Try to map token streams into something that has more structure.
-   * */
+  object Ranged_Token {
 
-  def parse_command(command: Command): DocumentElement =
-    TokenParsers.parse(TokenParsers.tokenParser, command.span.content) match {
-      case TokenParsers.Success(result, TokenReader(Nil, _)) => result
-      case TokenParsers.Success(_, next)                     => Failed(s"Failed parsing. $next left")
-      case failure: TokenParsers.NoSuccess                   => Failed(failure.msg)
+    def unapply(r: Ranged_Token): Option[(Token.Kind.Value, String, Line.Range)] =
+      Some(r.token.kind, r.source, r.range)
+
+    def list_range(ranges: List[Line.Range]): Line.Range = ranges match {
+      case rs @ (head :: _) => Line.Range(head.start, rs.last.stop)
+      case Nil              => Line.Range.zero
+    }
+  }
+
+  case class Parsed_Command(val command: Command, snapshot: Document.Snapshot) {
+    /* Position Info */
+
+    // We're certain that we don't receive a none here, since we're only using commands that are
+    // guaranteed to be in the state.
+    val node_pos: Line.Node_Position = snapshot.find_command_position(command.id, 0).get
+
+    val start_position: Line.Position = node_pos.pos
+
+    val range: Line.Range =
+      Line.Range(start_position, start_position.advance(command.source))
+
+    /* Tokens with position */
+
+    def generate_positions(
+        tokens: List[Token],
+        start_position: Line.Position
+    ): List[Ranged_Token] = tokens match {
+      case head :: next => {
+        val end_position = start_position.advance(head.source)
+        (Ranged_Token(head, Line.Range(start_position, end_position))) :: generate_positions(
+          next,
+          end_position
+        )
+      }
+      case Nil => Nil
     }
 
-  case class IndexPosition(val ts: List[Token], val i: Int) extends input.Position {
+    val tokens: List[Ranged_Token] =
+      generate_positions(command.span.content, start_position)
+
+    /* ==== Parsing ====
+     * Try to map token streams into something that has more structure.
+     * */
+
+    lazy val parsed: DocumentElement =
+      TokenParsers.parse(TokenParsers.tokenParser, tokens) match {
+        case TokenParsers.Success(result, TokenReader(Nil, _)) => result
+        case TokenParsers.Success(_, next)                     => Failed(s"Failed parsing. $next left")
+        case failure: TokenParsers.NoSuccess                   => Failed(failure.msg)
+      }
+
+  }
+
+  case class IndexPosition(val ts: List[Ranged_Token], val i: Int) extends input.Position {
     def column: Int = ts.slice(0, i + 1).map(_.content.size).sum
     def line: Int = 0
     protected def lineContents: String = (ts map { _.content }).mkString
   }
 
-  case class TokenReader(in: List[Token], from: Int = 0) extends input.Reader[Token] {
-    def first: Token = in.head
+  case class TokenReader(in: List[Ranged_Token], from: Int = 0) extends input.Reader[Ranged_Token] {
+    def first: Ranged_Token = in.head
     def rest: TokenReader = TokenReader(in.tail, from + 1)
     def pos: input.Position = IndexPosition(in, from)
     def atEnd: Boolean = in.isEmpty
   }
 
-  abstract class DocumentElement
-  abstract class Proof extends DocumentElement
-  case class Name(val content: String) extends DocumentElement
-  case class Atom(val content: String) extends DocumentElement
+  abstract class DocumentElement(val range: Line.Range)
+  abstract class Proof(override val range: Line.Range) extends DocumentElement(range)
+  case class Name(val content: String, override val range: Line.Range)
+      extends DocumentElement(range)
+  object Name {
+    def apply(token: Ranged_Token): Name = Name(token.content, token.range)
+  }
 
-  trait Arg extends DocumentElement
-  case class Single_Arg(val atom: Atom) extends Arg
-  case class Args(val args: List[Arg]) extends Arg
+  case class Atom(val content: String, override val range: Line.Range)
+      extends DocumentElement(range)
+  object Atom {
+    def apply(token: Ranged_Token): Atom = Atom(token.content, token.range)
+  }
+
+  abstract class Arg(override val range: Line.Range) extends DocumentElement(range)
+
+  case class Single_Arg(val atom: Atom, override val range: Line.Range) extends Arg(range)
+  object Single_Arg {
+    def apply(atom: Atom): Single_Arg = Single_Arg(atom, atom.range)
+  }
+
+  case class Args(val args: List[Arg], override val range: Line.Range) extends Arg(range)
+  object Args {
+    def apply(args: List[Arg]): Args = Args(args, Ranged_Token.list_range(args.map(_.range)))
+  }
 
   object Method {
     /* Modifiers */
@@ -105,34 +205,54 @@ object Linter {
       case None => method
       case Some(value) =>
         method match {
-          case Combined_Method(left, combinator, right, modifiers) =>
-            Combined_Method(left, combinator, right, modifiers :+ value)
-          case Simple_Method(name, modifiers, args) => Simple_Method(name, modifiers :+ value, args)
+          case Combined_Method(left, combinator, right, range, modifiers) =>
+            Combined_Method(left, combinator, right, range, modifiers :+ value)
+          case Simple_Method(name, range, modifiers, args) =>
+            Simple_Method(name, range, modifiers :+ value, args)
         }
     }
   }
 
-  abstract class Method extends DocumentElement
+  abstract class Method(override val range: Line.Range) extends DocumentElement(range)
+
   case class Simple_Method(
       val name: Name,
+      override val range: Line.Range,
       val modifiers: List[Method.Modifier] = Nil,
-      val args: Arg = Args(Nil)
-  ) extends Method
+      val args: Arg = Args(Nil, Line.Range.zero)
+  ) extends Method(range)
+  object Simple_Method {
+
+    def apply(
+        name: Name,
+        args: Arg
+    ): Simple_Method =
+      Simple_Method(name, name.range, Nil, args)
+
+    def apply(name: Name): Simple_Method =
+      Simple_Method(name, name.range, Nil, Args(Nil, Line.Range.zero))
+  }
 
   case class Combined_Method(
       val left: Method,
       val combinator: Method.Combinator,
       val right: Method,
+      override val range: Line.Range,
       val modifiers: List[Method.Modifier] = Nil
-  ) extends Method
+  ) extends Method(range)
+  object Combined_Method {
+    def apply(left: Method, combinator: Method.Combinator, right: Method): Combined_Method =
+      Combined_Method(left, combinator, right, Line.Range(left.range.start, right.range.stop), Nil)
+  }
 
-  case class Apply(val method: Method) extends Proof
-  case class Isar_Proof(val method: Option[Method]) extends Proof
-  case class Unparsed(val tokens: List[Token]) extends DocumentElement
-  case class Failed(val string: String) extends DocumentElement
+  case class Apply(val method: Method, override val range: Line.Range) extends Proof(range)
+  case class Isar_Proof(val method: Option[Method], override val range: Line.Range)
+      extends Proof(range)
+  case class Unparsed(val tokens: List[Ranged_Token]) extends DocumentElement(Line.Range.zero)
+  case class Failed(val string: String) extends DocumentElement(Line.Range.zero)
 
   object TokenParsers extends Parsers {
-    type Elem = Token
+    type Elem = Ranged_Token
 
     /* Utilities */
 
@@ -161,38 +281,43 @@ object Linter {
       token.is_keyword ||
       token.kind == Token.Kind.CARTOUCHE
 
-    /* Token kinds */
-    def pCommand(name: String): Parser[Token] = elem(name, _.is_command(name))
-    def pCommand(names: String*): Parser[Token] = anyOf(names.map(pCommand(_)))
+    def is_atom(rtoken: Ranged_Token): Boolean = is_atom(rtoken.token)
 
-    def pKeyword(name: String): Parser[Token] = elem(name, _.is_keyword(name))
-    def pIdent: Parser[Token] = elem("ident", _.is_ident)
-    def pSymIdent: Parser[Token] = elem("sym_ident", _.is_sym_ident)
-    def pNat: Parser[Token] = elem("nat", _.is_nat)
-    def pString: Parser[Token] = elem("string", _.is_string)
+    /* Token kinds */
+    def pCommand(name: String): Parser[Elem] = elem(name, _.is_command(name))
+    def pCommand(names: String*): Parser[Elem] = anyOf(names.map(pCommand(_)))
+
+    def pKeyword(name: String): Parser[Elem] = elem(name, _.is_keyword(name))
+    def pIdent: Parser[Elem] = elem("ident", _.is_ident)
+    def pSymIdent: Parser[Elem] = elem("sym_ident", _.is_sym_ident)
+    def pNat: Parser[Elem] = elem("nat", _.is_nat)
+    def pString: Parser[Elem] = elem("string", _.is_string)
 
     /* Surrounded parsers */
     def pSurrounded[T, U](left: Parser[T], right: Parser[T])(center: Parser[U]): Parser[U] =
       left ~> center <~ right
-    def pOpenSqBracket: Parser[Token] = pKeyword("[")
-    def pClosedSqBracket: Parser[Token] = pKeyword("]")
+    def pOpenSqBracket: Parser[Elem] = pKeyword("[")
+    def pClosedSqBracket: Parser[Elem] = pKeyword("]")
     def pSqBracketed[U]: Parser[U] => Parser[U] = pSurrounded(pOpenSqBracket, pClosedSqBracket)
 
-    def pOpenParen: Parser[Token] = pKeyword("(")
-    def pClosedParen: Parser[Token] = pKeyword(")")
+    def pOpenParen: Parser[Elem] = pKeyword("(")
+    def pClosedParen: Parser[Elem] = pKeyword(")")
     def pParened[U]: Parser[U] => Parser[U] = pSurrounded(pOpenParen, pClosedParen)
 
     /* Simple elements */
 
     // Atoms can be too general, so propagate a predicate
     def pAtom(pred: Token => Boolean): Parser[Atom] =
-      elem("atom", (t => is_atom(t) && pred(t))) ^^ (token => Atom(token.content))
+      elem("atom", (t => is_atom(t) && pred(t.token))) ^^ (Atom(_))
+    def pName: Parser[Name] = elem("name", _.is_name) ^^ (Name(_))
 
-    def pName: Parser[Name] = elem("name", _.is_name) ^^ (token => Name(token.content))
+    /* Args */
+    def pSingle_Arg(pred: Token => Boolean): Parser[Single_Arg] = pAtom(pred) ^^ (Single_Arg(_))
+    def pArgs(pred: Token => Boolean): Parser[Args] =
+      (pSqBracketed(pArg(pred).*) | pParened(pArg(pred).*)) ^^ (Args(_))
 
     def pArg: Parser[Arg] = pArg(_ => true)
-    def pArg(pred: Token => Boolean): Parser[Arg] =
-      (pAtom(pred) ^^ Single_Arg) | ((pSqBracketed(pArg(pred).*) | pParened(pArg(pred).*)) ^^ Args)
+    def pArg(pred: Token => Boolean): Parser[Arg] = pSingle_Arg(pred) | pArgs(pred)
 
     object MethodParsers {
 
@@ -245,23 +370,30 @@ object Linter {
     }
 
     /* Apply */
-    def pApply: Parser[Apply] = pCommand("apply") ~> MethodParsers.pMethod ^^ Apply
+    def pApply: Parser[Apply] = pCommand("apply") ~ MethodParsers.pMethod ^^ {
+      case applyToken ~ method =>
+        Apply(method, Line.Range(applyToken.range.start, method.range.stop))
+    }
 
     /* Isar-Proof */
-    def pIsarProof: Parser[Isar_Proof] = pCommand("proof") ~> MethodParsers.pMethod.? ^^ Isar_Proof
+    def pIsarProof: Parser[Isar_Proof] = pCommand("proof") ~ MethodParsers.pMethod.? ^^ {
+      case proofToken ~ Some(method) =>
+        Isar_Proof(Some(method), Line.Range(proofToken.range.start, method.range.stop))
+      case proofToken ~ None => Isar_Proof(None, proofToken.range)
+    }
 
     /* Lemma attributes */
-    def pAttribute: Parser[String] = pIdent ^^ { _.content }
+    def pAttribute: Parser[Elem] = pIdent
 
-    def pAttributes: Parser[List[String]] =
-      chainl1[List[String]](pAttribute ^^ { List(_) }, pKeyword(",") ^^^ { _ ::: _ })
+    def pAttributes: Parser[List[Elem]] =
+      chainl1[List[Elem]](pAttribute ^^ { List(_) }, pKeyword(",") ^^^ { _ ::: _ })
 
     /* Putting things together.. */
     def pCatch: Parser[Unparsed] = elem("any", _ => true).* ^^ Unparsed
 
     def tokenParser: Parser[DocumentElement] = pApply | pIsarProof | pCatch
 
-    def parse[T](p: Parser[T], in: List[Token]): ParseResult[T] =
+    def parse[T](p: Parser[T], in: List[Elem]): ParseResult[T] =
       p(TokenReader(in filterNot (_.is_space)))
   }
 
@@ -273,44 +405,67 @@ object Linter {
 
   type Lint_Report = String
 
+  type Reporter = (String, Line.Range, Option[(String, String)]) => Some[Lint_Report]
+
   sealed trait Lint {
-    def lint(command: Parsed_Command): Option[Lint_Report]
+
+    def lint(command: Parsed_Command): Option[Lint_Report] = {
+      def report(
+          message: String,
+          range: Line.Range,
+          edit: Option[(String, String)]
+      ): Some[Lint_Report] =
+        Some(s"${command.range} ==> $message. Edit: $edit")
+      lint(command, report)
+    }
+
+    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Report]
   }
 
   /* Lints that use raw commands
    * */
   abstract class Raw_Command_Lint extends Lint {
-    def lint_command(command: Command): Option[Lint_Report]
+    def lint_command(
+        command: Command,
+        report: Reporter
+    ): Option[Lint_Report]
 
-    def lint(command: Parsed_Command): Option[Lint_Report] = lint_command(command.command)
+    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Report] =
+      lint_command(command.command, report)
+  }
+
+  object Debug_Command extends Lint {
+    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Report] = {
+      report(s"${command.tokens}", command.range, None)
+    }
   }
 
   /* Lints that use a raw token stream
    * */
 
   abstract class Raw_Token_Stream_Lint extends Lint {
-    def lint_token_stream(tokens: List[Token]): Option[Lint_Report]
+    def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Report]
 
-    def lint(command: Parsed_Command): Option[Lint_Report] = lint_token_stream(
-      command.command.span.content
-    )
+    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Report] =
+      lint(command.tokens, report)
   }
 
   object Axiomatization_With_Where extends Raw_Token_Stream_Lint {
 
-    def lint_token_stream(tokens: List[Token]): Option[Lint_Report] = tokens match {
-      case Token(Token.Kind.COMMAND, "axiomatization") :: next
+    def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Report] = tokens match {
+      case Ranged_Token(Token.Kind.COMMAND, "axiomatization", range) :: next
           if next.exists(_.content == "where") =>
-        Some("Don't use axiomatization")
+        report("Don't use axiomatization", range, None)
       case _ => None
     }
   }
 
   abstract class Illegal_Command_Lint(message: String, illegal_commands: List[String])
       extends Raw_Token_Stream_Lint {
-    def lint_token_stream(tokens: List[Token]): Option[Lint_Report] = tokens match {
-      case head :: _ if (illegal_commands.contains(head.content)) => Some(message)
-      case _                                                      => None
+    def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Report] = tokens match {
+      case head :: _ if (illegal_commands.contains(head.content)) =>
+        report(message, head.range, Some(tokens.map(_.source).mkString, ""))
+      case _ => None
     }
   }
 
@@ -416,11 +571,11 @@ object Linter {
    * */
   abstract class Parser_Lint extends Lint {
 
-    def parser: TokenParsers.Parser[Lint_Report]
+    def parser(report: Reporter): TokenParsers.Parser[Some[Lint_Report]]
 
-    def lint(command: Parsed_Command): Option[Lint_Report] =
-      TokenParsers.parse(parser, command.command.span.content) match {
-        case TokenParsers.Success(result, _) => Some(result)
+    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Report] =
+      TokenParsers.parse(parser(report), command.tokens) match {
+        case TokenParsers.Success(result, _) => result
         case _                               => None
       }
   }
@@ -428,28 +583,36 @@ object Linter {
   object Short_Name extends Parser_Lint {
     import TokenParsers._
 
-    def parser: TokenParsers.Parser[Lint_Report] =
+    override def parser(report: Reporter): TokenParsers.Parser[Some[Lint_Report]] =
       pCommand("fun", "definition") ~> elem("ident", _.content.size < 2) ^^ (token =>
-        s"""Name "${token.content}" too short"""
+        report(s"""Name "${token.content}" too short""", token.range, None)
       )
   }
 
   object Unnamed_Lemma_Simplifier_Attributes extends Parser_Lint {
     import TokenParsers._
 
-    override def parser: Parser[Lint_Report] =
-      pCommand("lemma") ~> pSqBracketed(pAttributes).withFilter(
-        _.exists(List("simp", "cong").contains(_))
-      ) ^^^ "Don't use simplifier attributes on unnamed lemmas"
+    override def parser(report: Reporter): Parser[Some[Lint_Report]] =
+      pCommand("lemma") ~> pSqBracketed(pAttributes)
+        .map(_.find(attr => List("simp", "cong").contains(attr.content)))
+        .withFilter(_.isDefined)
+        .map(_.get)
+        .map(ranged_token =>
+          report("Don't use simplifier attributes on unnamed lemmas", ranged_token.range, None)
+        )
   }
 
   object Lemma_Transforming_Attributes extends Parser_Lint {
     import TokenParsers._
 
-    override def parser: Parser[Lint_Report] =
-      (pCommand("lemma") ~ pIdent.?) ~> pSqBracketed(pAttributes).withFilter(
-        _.exists(List("simplified", "rule_format").contains(_))
-      ) ^^^ "Don't use transforming attributes on lemmas"
+    override def parser(report: Reporter): Parser[Lint_Report] =
+      (pCommand("lemma") ~ pIdent.?) ~> pSqBracketed(pAttributes)
+        .map(_.find(attr => List("simplified", "rule_format").contains(attr.content)))
+        .withFilter(_.isDefined)
+        .map(_.get)
+        .map(ranged_token =>
+          report("Don't use transforming attributes on lemmas", ranged_token.range, None)
+        )
   }
 
   /* Lints that use the parsed document structure
@@ -461,32 +624,34 @@ object Linter {
     def lint_isar_proof(method: Option[Method]): Option[Lint_Report] = None
 
     def lint_proof(proof: Proof): Option[Lint_Report] = proof match {
-      case Apply(method)      => lint_apply(method)
-      case Isar_Proof(method) => lint_isar_proof(method)
+      case Apply(method, _)      => lint_apply(method)
+      case Isar_Proof(method, _) => lint_isar_proof(method)
     }
 
-    def lint_document_element(elem: DocumentElement): Option[Lint_Report] = elem match {
-      case p: Proof => lint_proof(p)
-      case _        => None
-    }
+    def lint_document_element(elem: DocumentElement): Option[Lint_Report] =
+      elem match {
+        case p: Proof => lint_proof(p)
+        case _        => None
+      }
 
-    def lint(command: Parsed_Command): Option[Lint_Report] = lint_document_element(command.parsed)
+    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Report] =
+      lint_document_element(command.parsed)
 
   }
 
   object Implicit_Rule extends Structure_Lint {
     override def lint_apply(method: Method): Option[Lint_Report] = method match {
-      case Simple_Method(Name("rule"), _, Args(Nil)) => Some("Do not use implicit rule")
-      case Combined_Method(left, _, right, _)        => lint_apply(left).orElse(lint_apply(right))
-      case _                                         => None
+      case Simple_Method(Name("rule", _), _, _, Args(Nil, _)) => Some("Do not use implicit rule")
+      case Combined_Method(left, _, right, _, _)              => lint_apply(left).orElse(lint_apply(right))
+      case _                                                  => None
     }
   }
 
   object Simple_Isar_Method extends Structure_Lint {
 
     def is_complex(method: Method): Boolean = method match {
-      case Simple_Method(Name(name), _, _)    => name == "auto"
-      case Combined_Method(left, _, right, _) => is_complex(left) || is_complex(right)
+      case Simple_Method(Name(name, _), _, _, _) => name == "auto"
+      case Combined_Method(left, _, right, _, _) => is_complex(left) || is_complex(right)
     }
 
     override def lint_isar_proof(method: Option[Method]): Option[Lint_Report] =
