@@ -605,7 +605,7 @@ object Linter {
   object Lemma_Transforming_Attributes extends Parser_Lint {
     import TokenParsers._
 
-    override def parser(report: Reporter): Parser[Lint_Report] =
+    override def parser(report: Reporter): Parser[Some[Lint_Report]] =
       (pCommand("lemma") ~ pIdent.?) ~> pSqBracketed(pAttributes)
         .map(_.find(attr => List("simplified", "rule_format").contains(attr.content)))
         .withFilter(_.isDefined)
