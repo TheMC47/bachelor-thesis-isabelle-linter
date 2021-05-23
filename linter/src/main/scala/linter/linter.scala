@@ -383,10 +383,10 @@ object Linter {
     }
 
     /* Lemma attributes */
-    def pAttribute: Parser[String] = pIdent ^^ { _.content }
+    def pAttribute: Parser[Elem] = pIdent
 
-    def pAttributes: Parser[List[String]] =
-      chainl1[List[String]](pAttribute ^^ { List(_) }, pKeyword(",") ^^^ { _ ::: _ })
+    def pAttributes: Parser[List[Elem]] =
+      chainl1[List[Elem]](pAttribute ^^ { List(_) }, pKeyword(",") ^^^ { _ ::: _ })
 
     /* Putting things together.. */
     def pCatch: Parser[Unparsed] = elem("any", _ => true).* ^^ Unparsed
@@ -405,44 +405,67 @@ object Linter {
 
   type Lint_Report = String
 
+  type Reporter = (String, Line.Range, Option[(String, String)]) => Some[Lint_Report]
+
   sealed trait Lint {
-    def lint(command: Parsed_Command): Option[Lint_Report]
+
+    def lint(command: Parsed_Command): Option[Lint_Report] = {
+      def report(
+          message: String,
+          range: Line.Range,
+          edit: Option[(String, String)]
+      ): Some[Lint_Report] =
+        Some(s"${command.range} ==> $message. Edit: $edit")
+      lint(command, report)
+    }
+
+    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Report]
   }
 
   /* Lints that use raw commands
    * */
   abstract class Raw_Command_Lint extends Lint {
-    def lint_command(command: Command): Option[Lint_Report]
+    def lint_command(
+        command: Command,
+        report: Reporter
+    ): Option[Lint_Report]
 
-    def lint(command: Parsed_Command): Option[Lint_Report] = lint_command(command.command)
+    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Report] =
+      lint_command(command.command, report)
+  }
+
+  object Debug_Command extends Lint {
+    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Report] = {
+      report(s"${command.tokens}", command.range, None)
+    }
   }
 
   /* Lints that use a raw token stream
    * */
 
   abstract class Raw_Token_Stream_Lint extends Lint {
-    def lint_token_stream(tokens: List[Token]): Option[Lint_Report]
+    def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Report]
 
-    def lint(command: Parsed_Command): Option[Lint_Report] = lint_token_stream(
-      command.command.span.content
-    )
+    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Report] =
+      lint(command.tokens, report)
   }
 
   object Axiomatization_With_Where extends Raw_Token_Stream_Lint {
 
-    def lint_token_stream(tokens: List[Token]): Option[Lint_Report] = tokens match {
-      case Token(Token.Kind.COMMAND, "axiomatization") :: next
+    def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Report] = tokens match {
+      case Ranged_Token(Token.Kind.COMMAND, "axiomatization", range) :: next
           if next.exists(_.content == "where") =>
-        Some("Don't use axiomatization")
+        report("Don't use axiomatization", range, None)
       case _ => None
     }
   }
 
   abstract class Illegal_Command_Lint(message: String, illegal_commands: List[String])
       extends Raw_Token_Stream_Lint {
-    def lint_token_stream(tokens: List[Token]): Option[Lint_Report] = tokens match {
-      case head :: _ if (illegal_commands.contains(head.content)) => Some(message)
-      case _                                                      => None
+    def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Report] = tokens match {
+      case head :: _ if (illegal_commands.contains(head.content)) =>
+        report(message, head.range, Some(tokens.map(_.source).mkString, ""))
+      case _ => None
     }
   }
 
@@ -548,11 +571,11 @@ object Linter {
    * */
   abstract class Parser_Lint extends Lint {
 
-    def parser: TokenParsers.Parser[Lint_Report]
+    def parser(report: Reporter): TokenParsers.Parser[Some[Lint_Report]]
 
-    def lint(command: Parsed_Command): Option[Lint_Report] =
-      TokenParsers.parse(parser, command.tokens) match {
-        case TokenParsers.Success(result, _) => Some(result)
+    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Report] =
+      TokenParsers.parse(parser(report), command.tokens) match {
+        case TokenParsers.Success(result, _) => result
         case _                               => None
       }
   }
@@ -560,28 +583,36 @@ object Linter {
   object Short_Name extends Parser_Lint {
     import TokenParsers._
 
-    def parser: TokenParsers.Parser[Lint_Report] =
+    override def parser(report: Reporter): TokenParsers.Parser[Some[Lint_Report]] =
       pCommand("fun", "definition") ~> elem("ident", _.content.size < 2) ^^ (token =>
-        s"""Name "${token.content}" too short"""
+        report(s"""Name "${token.content}" too short""", token.range, None)
       )
   }
 
   object Unnamed_Lemma_Simplifier_Attributes extends Parser_Lint {
     import TokenParsers._
 
-    override def parser: Parser[Lint_Report] =
-      pCommand("lemma") ~> pSqBracketed(pAttributes).withFilter(
-        _.exists(List("simp", "cong").contains(_))
-      ) ^^^ "Don't use simplifier attributes on unnamed lemmas"
+    override def parser(report: Reporter): Parser[Some[Lint_Report]] =
+      pCommand("lemma") ~> pSqBracketed(pAttributes)
+        .map(_.find(attr => List("simp", "cong").contains(attr.content)))
+        .withFilter(_.isDefined)
+        .map(_.get)
+        .map(ranged_token =>
+          report("Don't use simplifier attributes on unnamed lemmas", ranged_token.range, None)
+        )
   }
 
   object Lemma_Transforming_Attributes extends Parser_Lint {
     import TokenParsers._
 
-    override def parser: Parser[Lint_Report] =
-      (pCommand("lemma") ~ pIdent.?) ~> pSqBracketed(pAttributes).withFilter(
-        _.exists(List("simplified", "rule_format").contains(_))
-      ) ^^^ "Don't use transforming attributes on lemmas"
+    override def parser(report: Reporter): Parser[Lint_Report] =
+      (pCommand("lemma") ~ pIdent.?) ~> pSqBracketed(pAttributes)
+        .map(_.find(attr => List("simplified", "rule_format").contains(attr.content)))
+        .withFilter(_.isDefined)
+        .map(_.get)
+        .map(ranged_token =>
+          report("Don't use transforming attributes on lemmas", ranged_token.range, None)
+        )
   }
 
   /* Lints that use the parsed document structure
@@ -593,16 +624,18 @@ object Linter {
     def lint_isar_proof(method: Option[Method]): Option[Lint_Report] = None
 
     def lint_proof(proof: Proof): Option[Lint_Report] = proof match {
-      case Apply(method)      => lint_apply(method)
-      case Isar_Proof(method) => lint_isar_proof(method)
+      case Apply(method, _)      => lint_apply(method)
+      case Isar_Proof(method, _) => lint_isar_proof(method)
     }
 
-    def lint_document_element(elem: DocumentElement): Option[Lint_Report] = elem match {
-      case p: Proof => lint_proof(p)
-      case _        => None
-    }
+    def lint_document_element(elem: DocumentElement): Option[Lint_Report] =
+      elem match {
+        case p: Proof => lint_proof(p)
+        case _        => None
+      }
 
-    def lint(command: Parsed_Command): Option[Lint_Report] = lint_document_element(command.parsed)
+    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Report] =
+      lint_document_element(command.parsed)
 
   }
 
