@@ -403,20 +403,26 @@ object Linter {
    * are more convenient.
    * */
 
-  type Lint_Report = String
+  case class Lint_Report(
+      val lint_name: String,
+      val message: String,
+      val range: Line.Range,
+      val edit: Option[(String, String)],
+      command: Parsed_Command
+  )
 
   type Reporter = (String, Line.Range, Option[(String, String)]) => Some[Lint_Report]
 
   sealed trait Lint {
 
+    // The name of the lint. snake_case
+    val name: String
+
     def lint(command: Parsed_Command): Option[Lint_Report] = {
-      def report(
-          message: String,
-          range: Line.Range,
-          edit: Option[(String, String)]
-      ): Some[Lint_Report] =
-        Some(s"${command.range} ==> $message. Edit: $edit")
-      lint(command, report)
+      lint(
+        command,
+        (message, range, edit) => Some(Lint_Report(name, message, range, edit, command))
+      )
     }
 
     def lint(command: Parsed_Command, report: Reporter): Option[Lint_Report]
@@ -435,6 +441,9 @@ object Linter {
   }
 
   object Debug_Command extends Lint {
+
+    val name: String = "debug_command"
+
     def lint(command: Parsed_Command, report: Reporter): Option[Lint_Report] = {
       report(s"${command.tokens}", command.range, None)
     }
@@ -452,6 +461,8 @@ object Linter {
 
   object Axiomatization_With_Where extends Raw_Token_Stream_Lint {
 
+    val name: String = "axiomatization_with_where"
+
     def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Report] = tokens match {
       case Ranged_Token(Token.Kind.COMMAND, "axiomatization", range) :: next
           if next.exists(_.content == "where") =>
@@ -460,8 +471,14 @@ object Linter {
     }
   }
 
-  abstract class Illegal_Command_Lint(message: String, illegal_commands: List[String])
-      extends Raw_Token_Stream_Lint {
+  abstract class Illegal_Command_Lint(
+      message: String,
+      lint_name: String,
+      illegal_commands: List[String]
+  ) extends Raw_Token_Stream_Lint {
+
+    val name: String = lint_name
+
     def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Report] = tokens match {
       case head :: _ if (illegal_commands.contains(head.content)) =>
         report(message, head.range, Some(tokens.map(_.source).mkString, ""))
@@ -470,11 +487,16 @@ object Linter {
   }
 
   object Unfinished_Proof
-      extends Illegal_Command_Lint("Unfinished proof", List("sorry", "oops", "\\<proof>"))
+      extends Illegal_Command_Lint(
+        "Unfinished proof",
+        "unfinished_proof_command",
+        List("sorry", "oops", "\\<proof>")
+      )
 
   object Proof_Finder
       extends Illegal_Command_Lint(
         "Proof finder",
+        "proof_finder_command",
         List(
           "sledgehammer",
           "solve_direct",
@@ -486,6 +508,7 @@ object Linter {
   object Counter_Example_Finder
       extends Illegal_Command_Lint(
         "Counter example finder",
+        "counter_example_finder_command",
         List(
           "nitpick",
           "nunchaku",
@@ -494,11 +517,16 @@ object Linter {
       )
 
   object Bad_Style_Command
-      extends Illegal_Command_Lint("Bad style command", List("back", "apply_end"))
+      extends Illegal_Command_Lint(
+        "Bad style command",
+        "bad_style_command",
+        List("back", "apply_end")
+      )
 
   object Diagnostic_Command
       extends Illegal_Command_Lint(
         "Interactive diagnostic command",
+        "diagnostic_command",
         List(
           "ML_val",
           "class_deps",
@@ -583,6 +611,8 @@ object Linter {
   object Short_Name extends Parser_Lint {
     import TokenParsers._
 
+    val name: String = "name_too_short"
+
     override def parser(report: Reporter): TokenParsers.Parser[Some[Lint_Report]] =
       pCommand("fun", "definition") ~> elem("ident", _.content.size < 2) ^^ (token =>
         report(s"""Name "${token.content}" too short""", token.range, None)
@@ -591,6 +621,8 @@ object Linter {
 
   object Unnamed_Lemma_Simplifier_Attributes extends Parser_Lint {
     import TokenParsers._
+
+    val name: String = "simplifier_on_unnamed_lemma"
 
     override def parser(report: Reporter): Parser[Some[Lint_Report]] =
       pCommand("lemma") ~> pSqBracketed(pAttributes)
@@ -604,6 +636,8 @@ object Linter {
 
   object Lemma_Transforming_Attributes extends Parser_Lint {
     import TokenParsers._
+
+    val name: String = "lemma_transforming_attributes"
 
     override def parser(report: Reporter): Parser[Some[Lint_Report]] =
       (pCommand("lemma") ~ pIdent.?) ~> pSqBracketed(pAttributes)
@@ -640,6 +674,9 @@ object Linter {
   }
 
   object Implicit_Rule extends Structure_Lint {
+
+    val name: String = "implicit_rule"
+
     override def lint_apply(method: Method, report: Reporter): Option[Lint_Report] = method match {
       case Simple_Method(Name("rule", _), range, _, Args(Nil, _)) =>
         report("Do not use implicit rule", range, None)
@@ -650,6 +687,8 @@ object Linter {
   }
 
   object Simple_Isar_Method extends Structure_Lint {
+
+    val name: String = "complex_isar_proof"
 
     def is_complex(method: Method): Boolean = method match {
       case Simple_Method(Name(name, _), _, _, _) => name == "auto"
@@ -663,6 +702,9 @@ object Linter {
   }
 
   object Print_Structure extends Structure_Lint {
+
+    val name: String = "print_structure"
+
     override def lint_document_element(
         elem: DocumentElement,
         report: Reporter
