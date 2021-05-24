@@ -619,31 +619,33 @@ object Linter {
    * */
   abstract class Structure_Lint extends Lint {
 
-    def lint_apply(method: Method): Option[Lint_Report] = None
+    def lint_apply(method: Method, report: Reporter): Option[Lint_Report] = None
 
-    def lint_isar_proof(method: Option[Method]): Option[Lint_Report] = None
+    def lint_isar_proof(method: Option[Method], report: Reporter): Option[Lint_Report] = None
 
-    def lint_proof(proof: Proof): Option[Lint_Report] = proof match {
-      case Apply(method, _)      => lint_apply(method)
-      case Isar_Proof(method, _) => lint_isar_proof(method)
+    def lint_proof(proof: Proof, report: Reporter): Option[Lint_Report] = proof match {
+      case Apply(method, _)      => lint_apply(method, report)
+      case Isar_Proof(method, _) => lint_isar_proof(method, report)
     }
 
-    def lint_document_element(elem: DocumentElement): Option[Lint_Report] =
+    def lint_document_element(elem: DocumentElement, report: Reporter): Option[Lint_Report] =
       elem match {
-        case p: Proof => lint_proof(p)
+        case p: Proof => lint_proof(p, report)
         case _        => None
       }
 
     def lint(command: Parsed_Command, report: Reporter): Option[Lint_Report] =
-      lint_document_element(command.parsed)
+      lint_document_element(command.parsed, report)
 
   }
 
   object Implicit_Rule extends Structure_Lint {
-    override def lint_apply(method: Method): Option[Lint_Report] = method match {
-      case Simple_Method(Name("rule", _), _, _, Args(Nil, _)) => Some("Do not use implicit rule")
-      case Combined_Method(left, _, right, _, _)              => lint_apply(left).orElse(lint_apply(right))
-      case _                                                  => None
+    override def lint_apply(method: Method, report: Reporter): Option[Lint_Report] = method match {
+      case Simple_Method(Name("rule", _), range, _, Args(Nil, _)) =>
+        report("Do not use implicit rule", range, None)
+      case Combined_Method(left, _, right, _, _) =>
+        lint_apply(left, report).orElse(lint_apply(right, report))
+      case _ => None
     }
   }
 
@@ -654,13 +656,17 @@ object Linter {
       case Combined_Method(left, _, right, _, _) => is_complex(left) || is_complex(right)
     }
 
-    override def lint_isar_proof(method: Option[Method]): Option[Lint_Report] =
-      if (method.isDefined && is_complex(method.get)) Some("Keep initial proof methods simple")
+    override def lint_isar_proof(method: Option[Method], report: Reporter): Option[Lint_Report] =
+      if (method.isDefined && is_complex(method.get))
+        report("Keep initial proof methods simple", Line.Range.zero, None)
       else None
   }
 
   object Print_Structure extends Structure_Lint {
-    override def lint_document_element(elem: DocumentElement): Option[Lint_Report] =
-      Some(s"Parsed: $elem")
+    override def lint_document_element(
+        elem: DocumentElement,
+        report: Reporter
+    ): Option[Lint_Report] =
+      report(s"Parsed: $elem", Line.Range.zero, None)
   }
 }
