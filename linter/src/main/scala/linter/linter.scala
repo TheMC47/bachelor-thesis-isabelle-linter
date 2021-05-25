@@ -107,6 +107,8 @@ object Linter {
     // guaranteed to be in the state.
     val node_pos: Line.Node_Position = snapshot.find_command_position(command.id, 0).get
 
+    val file_name: String = node_pos.name
+
     val start_position: Line.Position = node_pos.pos
 
     val range: Line.Range =
@@ -409,7 +411,9 @@ object Linter {
       val range: Line.Range,
       val edit: Option[(String, String)],
       command: Parsed_Command
-  )
+  ) {
+    val file_name: String = command.file_name
+  }
 
   type Reporter = (String, Line.Range, Option[(String, String)]) => Some[Lint_Report]
 
