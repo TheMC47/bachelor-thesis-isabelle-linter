@@ -716,4 +716,20 @@ object Linter {
     ): Option[Lint_Report] =
       report(s"Parsed: $elem", Line.Range.zero, None)
   }
+
+  val all_lints: List[Lint] = List(
+    Axiomatization_With_Where,
+    Proof_Finder,
+    Counter_Example_Finder,
+    Bad_Style_Command,
+    Diagnostic_Command,
+    Short_Name,
+    Unnamed_Lemma_Simplifier_Attributes,
+    Lemma_Transforming_Attributes,
+    Implicit_Rule,
+    Simple_Isar_Method,
+    // Debugging lints
+    // Print_Structure,
+    // Debug_Command
+  )
 }
