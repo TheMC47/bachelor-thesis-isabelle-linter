@@ -700,9 +700,10 @@ object Linter {
     }
 
     override def lint_isar_proof(method: Option[Method], report: Reporter): Option[Lint_Report] =
-      if (method.isDefined && is_complex(method.get))
-        report("Keep initial proof methods simple", Line.Range.zero, None)
-      else None
+      for {
+        s_method <- method
+        if is_complex(method.get)
+      } yield report("Keep initial proof methods simple", s_method.range, None).get
   }
 
   object Print_Structure extends Structure_Lint {
