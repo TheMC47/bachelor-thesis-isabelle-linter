@@ -45,7 +45,8 @@ object Linter {
       snapshot: Document.Snapshot,
       lints: List[Lint]
   ): Option[Lint_Report] =
-    lint_command(Parsed_Command(command, snapshot), lints)
+    if (command == Command.empty) None
+    else lint_command(Parsed_Command(command, snapshot), lints)
 
   def lint_command(command: Parsed_Command, lints: List[Lint]): Option[Lint_Report] =
     lints.toStream.map(_.lint(command)).find(_.isDefined).flatten
@@ -727,7 +728,7 @@ object Linter {
     Unnamed_Lemma_Simplifier_Attributes,
     Lemma_Transforming_Attributes,
     Implicit_Rule,
-    Simple_Isar_Method,
+    Simple_Isar_Method
     // Debugging lints
     // Print_Structure,
     // Debug_Command
