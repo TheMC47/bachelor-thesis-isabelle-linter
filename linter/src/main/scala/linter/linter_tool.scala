@@ -20,26 +20,26 @@ object Linter_Tool {
   ) {
 
     // Use Dump to get a context...
-    // val context =
-    //   Dump.Context(
-    //     options,
-    //     progress = progress,
-    //     dirs = dirs,
-    //     select_dirs = select_dirs,
-    //     selection = selection,
-    //     skip_base = true
-    //   )
+    val context =
+      Dump.Context(
+        options,
+        progress = progress,
+        dirs = dirs,
+        select_dirs = select_dirs,
+        selection = selection,
+        skip_base = true
+      )
 
-    // context.build_logic(logic)
-    // context
-    //   .sessions(logic, log = log)
-    //   .foreach(_.process((args: Dump.Args) => {
-    //     progress.echo("Processing theory " + args.print_node + " ...")
-    //     val snapshot = args.snapshot
-    //     Linter.lint(snapshot, List(Linter.Print_Structure), progress).map(report(_, progress))
-    //   }))
+    context.build_logic(logic)
+    context
+      .sessions(logic, log = log)
+      .foreach(_.process((args: Dump.Args) => {
+        progress.echo("Processing theory " + args.print_node + " ...")
+        val snapshot = args.snapshot
+        Linter.lint(snapshot, List(Linter.Print_Structure), progress).map(report(_, progress))
+      }))
 
-    // context.check_errors
+    context.check_errors
   }
 
   /* Isabelle tool wrapper */

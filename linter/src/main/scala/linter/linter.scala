@@ -121,13 +121,7 @@ object Linter {
       snapshot: Document.Snapshot,
       offset: Text.Offset
   ) {
-    /* Position Info */
-
-    // We're certain that we don't receive a none here, since we're only using commands that are
-    // guaranteed to be in the state.
-    val node_pos: Line.Node_Position = snapshot.find_command_position(command.id, 0).get
-
-    val file_name: String = node_pos.name
+    val node_name: Document.Node.Name= snapshot.node_name
 
     val range: Text.Range = command.range + offset
 
@@ -429,7 +423,7 @@ object Linter {
       val edit: Option[(String, String)],
       command: Parsed_Command
   ) {
-    val file_name: String = command.file_name
+    val node_name: Document.Node.Name = command.node_name
   }
 
   type Reporter = (String, Text.Range, Option[(String, String)]) => Some[Lint_Result]
