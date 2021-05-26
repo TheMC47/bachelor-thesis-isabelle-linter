@@ -23,16 +23,29 @@ object Linter {
     progress.echo("##########")
   }
 
+  def mapAccumL[A, B, C](xs: List[A], acc: B, result: (A, B) => (C, B)): List[C] = xs match {
+    case Nil => Nil
+    case head :: next =>
+      result(head, acc) match {
+        case (y, new_acc) => y :: mapAccumL(next, new_acc, result)
+      }
+  }
+
   def lint(
       snapshot: Document.Snapshot,
       lints: List[Lint],
       progress: Progress = new Progress // TODO Is this needed?
   ): List[Lint_Report] = {
-    val commands = snapshot.node.commands
 
-    commands.iterator foreach (debug_command(_, progress)) // Debugging
-
-    val parsed_commands = commands.iterator.map(Parsed_Command(_, snapshot))
+    val commands = snapshot.node.commands.iterator.toList
+    val parsed_commands = mapAccumL[Command, Text.Offset, Parsed_Command](
+      commands,
+      0,
+      { case (command, offset) =>
+        val parsed_command = Parsed_Command(command, snapshot, offset)
+        (parsed_command, parsed_command.range.stop)
+      }
+    )
 
     parsed_commands
       .map(lint_command(_, lints))
@@ -46,17 +59,19 @@ object Linter {
       lints: List[Lint]
   ): Option[Lint_Report] =
     if (command == Command.empty) None
-    else lint_command(Parsed_Command(command, snapshot), lints)
+    else lint_command(Parsed_Command(command, snapshot, 0), lints)
 
   def lint_command(command: Parsed_Command, lints: List[Lint]): Option[Lint_Report] =
     lints.toStream.map(_.lint(command)).find(_.isDefined).flatten
 
-  case class Ranged_Token(val token: Token, range: Line.Range) {
+  case class Ranged_Token(val token: Token, offset: Text.Offset) {
     /* Redefining functions from Token, to save a level of inderection */
 
     val content: String = token.content
 
     val source: String = token.source
+
+    val range: Text.Range = Text.Range(0, source.length()) + offset
 
     def is_command: Boolean = token.is_command
     def is_command(name: String): Boolean = token.is_command(name)
@@ -92,16 +107,20 @@ object Linter {
 
   object Ranged_Token {
 
-    def unapply(r: Ranged_Token): Option[(Token.Kind.Value, String, Line.Range)] =
+    def unapply(r: Ranged_Token): Option[(Token.Kind.Value, String, Text.Range)] =
       Some(r.token.kind, r.source, r.range)
 
-    def list_range(ranges: List[Line.Range]): Line.Range = ranges match {
-      case rs @ (head :: _) => Line.Range(head.start, rs.last.stop)
-      case Nil              => Line.Range.zero
+    def list_range(ranges: List[Text.Range]): Text.Range = ranges match {
+      case rs @ (head :: _) => Text.Range(head.start, rs.last.stop)
+      case Nil              => Text.Range(0)
     }
   }
 
-  case class Parsed_Command(val command: Command, snapshot: Document.Snapshot) {
+  case class Parsed_Command(
+      val command: Command,
+      snapshot: Document.Snapshot,
+      offset: Text.Offset
+  ) {
     /* Position Info */
 
     // We're certain that we don't receive a none here, since we're only using commands that are
@@ -110,29 +129,26 @@ object Linter {
 
     val file_name: String = node_pos.name
 
-    val start_position: Line.Position = node_pos.pos
-
-    val range: Line.Range =
-      Line.Range(start_position, start_position.advance(command.source))
+    val range: Text.Range = command.range + offset
 
     /* Tokens with position */
 
     def generate_positions(
         tokens: List[Token],
-        start_position: Line.Position
-    ): List[Ranged_Token] = tokens match {
-      case head :: next => {
-        val end_position = start_position.advance(head.source)
-        (Ranged_Token(head, Line.Range(start_position, end_position))) :: generate_positions(
-          next,
-          end_position
-        )
+        start_offset: Text.Offset
+    ): List[Ranged_Token] = mapAccumL[Token, Text.Offset, Ranged_Token](
+      tokens,
+      start_offset,
+      {
+        case (token, offset) => {
+          val ranged_token = Ranged_Token(token, offset)
+          (ranged_token, ranged_token.range.stop)
+        }
       }
-      case Nil => Nil
-    }
+    )
 
     val tokens: List[Ranged_Token] =
-      generate_positions(command.span.content, start_position)
+      generate_positions(command.span.content, offset)
 
     /* ==== Parsing ====
      * Try to map token streams into something that has more structure.
@@ -160,28 +176,28 @@ object Linter {
     def atEnd: Boolean = in.isEmpty
   }
 
-  abstract class DocumentElement(val range: Line.Range)
-  abstract class Proof(override val range: Line.Range) extends DocumentElement(range)
-  case class Name(val content: String, override val range: Line.Range)
+  abstract class DocumentElement(val range: Text.Range)
+  abstract class Proof(override val range: Text.Range) extends DocumentElement(range)
+  case class Name(val content: String, override val range: Text.Range)
       extends DocumentElement(range)
   object Name {
     def apply(token: Ranged_Token): Name = Name(token.content, token.range)
   }
 
-  case class Atom(val content: String, override val range: Line.Range)
+  case class Atom(val content: String, override val range: Text.Range)
       extends DocumentElement(range)
   object Atom {
     def apply(token: Ranged_Token): Atom = Atom(token.content, token.range)
   }
 
-  abstract class Arg(override val range: Line.Range) extends DocumentElement(range)
+  abstract class Arg(override val range: Text.Range) extends DocumentElement(range)
 
-  case class Single_Arg(val atom: Atom, override val range: Line.Range) extends Arg(range)
+  case class Single_Arg(val atom: Atom, override val range: Text.Range) extends Arg(range)
   object Single_Arg {
     def apply(atom: Atom): Single_Arg = Single_Arg(atom, atom.range)
   }
 
-  case class Args(val args: List[Arg], override val range: Line.Range) extends Arg(range)
+  case class Args(val args: List[Arg], override val range: Text.Range) extends Arg(range)
   object Args {
     def apply(args: List[Arg]): Args = Args(args, Ranged_Token.list_range(args.map(_.range)))
   }
@@ -216,13 +232,13 @@ object Linter {
     }
   }
 
-  abstract class Method(override val range: Line.Range) extends DocumentElement(range)
+  abstract class Method(override val range: Text.Range) extends DocumentElement(range)
 
   case class Simple_Method(
       val name: Name,
-      override val range: Line.Range,
+      override val range: Text.Range,
       val modifiers: List[Method.Modifier] = Nil,
-      val args: Arg = Args(Nil, Line.Range.zero)
+      val args: Arg = Args(Nil, Text.Range(0))
   ) extends Method(range)
   object Simple_Method {
 
@@ -233,26 +249,26 @@ object Linter {
       Simple_Method(name, name.range, Nil, args)
 
     def apply(name: Name): Simple_Method =
-      Simple_Method(name, name.range, Nil, Args(Nil, Line.Range.zero))
+      Simple_Method(name, name.range, Nil, Args(Nil, Text.Range(0)))
   }
 
   case class Combined_Method(
       val left: Method,
       val combinator: Method.Combinator,
       val right: Method,
-      override val range: Line.Range,
+      override val range: Text.Range,
       val modifiers: List[Method.Modifier] = Nil
   ) extends Method(range)
   object Combined_Method {
     def apply(left: Method, combinator: Method.Combinator, right: Method): Combined_Method =
-      Combined_Method(left, combinator, right, Line.Range(left.range.start, right.range.stop), Nil)
+      Combined_Method(left, combinator, right, Text.Range(left.range.start, right.range.stop), Nil)
   }
 
-  case class Apply(val method: Method, override val range: Line.Range) extends Proof(range)
-  case class Isar_Proof(val method: Option[Method], override val range: Line.Range)
+  case class Apply(val method: Method, override val range: Text.Range) extends Proof(range)
+  case class Isar_Proof(val method: Option[Method], override val range: Text.Range)
       extends Proof(range)
-  case class Unparsed(val tokens: List[Ranged_Token]) extends DocumentElement(Line.Range.zero)
-  case class Failed(val string: String) extends DocumentElement(Line.Range.zero)
+  case class Unparsed(val tokens: List[Ranged_Token]) extends DocumentElement(Text.Range(0))
+  case class Failed(val string: String) extends DocumentElement(Text.Range(0))
 
   object TokenParsers extends Parsers {
     type Elem = Ranged_Token
@@ -375,13 +391,13 @@ object Linter {
     /* Apply */
     def pApply: Parser[Apply] = pCommand("apply") ~ MethodParsers.pMethod ^^ {
       case applyToken ~ method =>
-        Apply(method, Line.Range(applyToken.range.start, method.range.stop))
+        Apply(method, Text.Range(applyToken.range.start, method.range.stop))
     }
 
     /* Isar-Proof */
     def pIsarProof: Parser[Isar_Proof] = pCommand("proof") ~ MethodParsers.pMethod.? ^^ {
       case proofToken ~ Some(method) =>
-        Isar_Proof(Some(method), Line.Range(proofToken.range.start, method.range.stop))
+        Isar_Proof(Some(method), Text.Range(proofToken.range.start, method.range.stop))
       case proofToken ~ None => Isar_Proof(None, proofToken.range)
     }
 
@@ -409,14 +425,14 @@ object Linter {
   case class Lint_Report(
       val lint_name: String,
       val message: String,
-      val range: Line.Range,
+      val range: Text.Range,
       val edit: Option[(String, String)],
       command: Parsed_Command
   ) {
     val file_name: String = command.file_name
   }
 
-  type Reporter = (String, Line.Range, Option[(String, String)]) => Some[Lint_Report]
+  type Reporter = (String, Text.Range, Option[(String, String)]) => Some[Lint_Report]
 
   sealed trait Lint {
 
@@ -715,7 +731,7 @@ object Linter {
         elem: DocumentElement,
         report: Reporter
     ): Option[Lint_Report] =
-      report(s"Parsed: $elem", Line.Range.zero, None)
+      report(s"Parsed: $elem", elem.range, None)
   }
 
   val all_lints: List[Lint] = List(
