@@ -5,7 +5,7 @@ import scala.collection.immutable
 
 object Linter_Tool {
 
-  def report(lint_report: Linter.Lint_Report, progress: Progress): Unit = {
+  def report(lint_report: Linter.Lint_Result, progress: Progress): Unit = {
     progress.echo(s"Lint: $lint_report")
   }
 
