@@ -67,7 +67,7 @@ object Linter {
   case class Ranged_Token(val token: Token, offset: Text.Offset) {
     /* Redefining functions from Token, to save a level of inderection */
 
-    val content: String = token.content
+    lazy val content: String = token.content
 
     val source: String = token.source
 
