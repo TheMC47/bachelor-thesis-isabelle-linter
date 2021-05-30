@@ -158,11 +158,6 @@ object Linter {
   abstract class DocumentElement(val range: Text.Range)
   abstract class Proof(override val range: Text.Range) extends DocumentElement(range)
 
-  case class Atom(val content: String, override val range: Text.Range)
-      extends DocumentElement(range)
-  object Atom {
-    def apply(token: Ranged_Token): Atom = Atom(token.content, token.range)
-  }
 
   abstract class Arg(override val range: Text.Range) extends DocumentElement(range)
 
