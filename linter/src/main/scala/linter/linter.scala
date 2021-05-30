@@ -158,19 +158,6 @@ object Linter {
   abstract class DocumentElement(val range: Text.Range)
   abstract class Proof(override val range: Text.Range) extends DocumentElement(range)
 
-
-  abstract class Arg(override val range: Text.Range) extends DocumentElement(range)
-
-  case class Single_Arg(val atom: Atom, override val range: Text.Range) extends Arg(range)
-  object Single_Arg {
-    def apply(atom: Atom): Single_Arg = Single_Arg(atom, atom.range)
-  }
-
-  case class Args(val args: List[Arg], override val range: Text.Range) extends Arg(range)
-  object Args {
-    def apply(args: List[Arg]): Args = Args(args, Ranged_Token.list_range(args.map(_.range)))
-  }
-
   object Method {
     /* Modifiers */
     trait Modifier
@@ -207,18 +194,18 @@ object Linter {
       val name: Ranged_Token,
       override val range: Text.Range,
       val modifiers: List[Method.Modifier] = Nil,
-      val args: Arg = Args(Nil, Text.Range(0))
+      val args: List[Ranged_Token] = Nil
   ) extends Method(range)
   object Simple_Method {
 
     def apply(
         name: Ranged_Token,
-        args: Arg
+        args: List[Ranged_Token]
     ): Simple_Method =
       Simple_Method(name, name.range, Nil, args)
 
     def apply(name: Ranged_Token): Simple_Method =
-      Simple_Method(name, name.range, Nil, Args(Nil, Text.Range(0)))
+      Simple_Method(name, name.range, Nil, Nil)
   }
 
   case class Combined_Method(
@@ -300,12 +287,12 @@ object Linter {
     def pName: Parser[Elem] = elem("name", _.is_name)
 
     /* Args */
-    def pSingle_Arg(pred: Token => Boolean): Parser[Single_Arg] = pAtom(pred) ^^ (Single_Arg(_))
-    def pArgs(pred: Token => Boolean): Parser[Args] =
-      (pSqBracketed(pArg(pred).*) | pParened(pArg(pred).*)) ^^ (Args(_))
+    def pSingle_Arg(pred: Token => Boolean): Parser[List[Elem]] = pAtom(pred) ^^ { List(_) }
+    def pArgs(pred: Token => Boolean): Parser[List[Elem]] =
+      (pSqBracketed(pArg(pred).*) | pParened(pArg(pred).*)) ^^ { _.flatten }
 
-    def pArg: Parser[Arg] = pArg(_ => true)
-    def pArg(pred: Token => Boolean): Parser[Arg] = pSingle_Arg(pred) | pArgs(pred)
+    def pArg: Parser[List[Elem]] = pArg(_ => true)
+    def pArg(pred: Token => Boolean): Parser[List[Elem]] = pSingle_Arg(pred) | pArgs(pred)
 
     object MethodParsers {
 
@@ -329,7 +316,7 @@ object Linter {
       def pStruct: Parser[Method] = pCombinator(";", Method.Combinator.Struct)
 
       /* Simple Methods */
-      def pMethodArg: Parser[Arg] = pArg { token =>
+      def pMethodArg: Parser[List[Elem]] = pArg { token =>
         !(token.is_open_bracket ||
           token.is_close_bracket ||
           (token.is_keyword && "|;,+".exists(token.is_keyword)))
@@ -337,7 +324,7 @@ object Linter {
 
       def pNameOnly: Parser[Simple_Method] = pName ^^ (name => Simple_Method(name))
       def pNameArgs: Parser[Simple_Method] = pName ~ pMethodArg.* ^^ { case name ~ args =>
-        Simple_Method(name, args = Args(args))
+        Simple_Method(name, args = args.flatten)
       }
 
       /* Method */
@@ -668,7 +655,7 @@ object Linter {
     val name: String = "implicit_rule"
 
     override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
-      case Simple_Method(Ranged_Token(_, "rule", _), range, _, Args(Nil, _)) =>
+      case Simple_Method(Ranged_Token(_, "rule", _), range, _, Nil) =>
         report("Do not use implicit rule", range, None)
       case Combined_Method(left, _, right, _, _) =>
         lint_apply(left, report).orElse(lint_apply(right, report))
