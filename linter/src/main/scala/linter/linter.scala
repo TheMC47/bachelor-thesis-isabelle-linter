@@ -121,7 +121,7 @@ object Linter {
       snapshot: Document.Snapshot,
       offset: Text.Offset
   ) {
-    val node_name: Document.Node.Name= snapshot.node_name
+    val node_name: Document.Node.Name = snapshot.node_name
 
     val range: Text.Range = command.range + offset
 
