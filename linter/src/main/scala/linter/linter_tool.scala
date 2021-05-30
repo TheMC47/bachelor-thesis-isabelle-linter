@@ -36,7 +36,7 @@ object Linter_Tool {
       .foreach(_.process((args: Dump.Args) => {
         progress.echo("Processing theory " + args.print_node + " ...")
         val snapshot = args.snapshot
-        Linter.lint(snapshot, List(Linter.Print_Structure), progress).map(report(_, progress))
+        Linter.lint(snapshot, List(Linter.Print_Structure)).map(report(_, progress))
       }))
 
     context.check_errors

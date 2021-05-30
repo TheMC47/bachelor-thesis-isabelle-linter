@@ -9,20 +9,6 @@ import scala.util.parsing.input
 
 object Linter {
 
-  def debug_command(c: Command, progress: Progress): Unit = {
-    // Print stuff that you think is useful
-    val span = c.span
-    progress.echo(c.source)
-    progress.echo("----------")
-    progress.echo("name: " + span.name)
-    progress.echo("kind: " + span.kind.toString)
-    progress.echo("position: " + span.position.toString)
-    val tokens: List[Token] = span.content
-    val s: List[String] = tokens.map(t => t.kind.toString + "-" + t.source)
-    progress.echo(s.mkString("Tokens_sources(", ",", ")"))
-    progress.echo("##########")
-  }
-
   def mapAccumL[A, B, C](xs: List[A], acc: B, result: (A, B) => (C, B)): List[C] = xs match {
     case Nil => Nil
     case head :: next =>
@@ -33,8 +19,7 @@ object Linter {
 
   def lint(
       snapshot: Document.Snapshot,
-      lints: List[Lint],
-      progress: Progress = new Progress // TODO Is this needed?
+      lints: List[Lint]
   ): List[Lint_Result] = {
 
     val commands = snapshot.node.commands.iterator.toList
