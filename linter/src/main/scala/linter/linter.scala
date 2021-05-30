@@ -157,11 +157,6 @@ object Linter {
 
   abstract class DocumentElement(val range: Text.Range)
   abstract class Proof(override val range: Text.Range) extends DocumentElement(range)
-  case class Name(val content: String, override val range: Text.Range)
-      extends DocumentElement(range)
-  object Name {
-    def apply(token: Ranged_Token): Name = Name(token.content, token.range)
-  }
 
   case class Atom(val content: String, override val range: Text.Range)
       extends DocumentElement(range)
@@ -214,7 +209,7 @@ object Linter {
   abstract class Method(override val range: Text.Range) extends DocumentElement(range)
 
   case class Simple_Method(
-      val name: Name,
+      val name: Ranged_Token,
       override val range: Text.Range,
       val modifiers: List[Method.Modifier] = Nil,
       val args: Arg = Args(Nil, Text.Range(0))
@@ -222,12 +217,12 @@ object Linter {
   object Simple_Method {
 
     def apply(
-        name: Name,
+        name: Ranged_Token,
         args: Arg
     ): Simple_Method =
       Simple_Method(name, name.range, Nil, args)
 
-    def apply(name: Name): Simple_Method =
+    def apply(name: Ranged_Token): Simple_Method =
       Simple_Method(name, name.range, Nil, Args(Nil, Text.Range(0)))
   }
 
@@ -305,9 +300,9 @@ object Linter {
     /* Simple elements */
 
     // Atoms can be too general, so propagate a predicate
-    def pAtom(pred: Token => Boolean): Parser[Atom] =
-      elem("atom", (t => is_atom(t) && pred(t.token))) ^^ (Atom(_))
-    def pName: Parser[Name] = elem("name", _.is_name) ^^ (Name(_))
+    def pAtom(pred: Token => Boolean): Parser[Elem] =
+      elem("atom", (t => is_atom(t) && pred(t.token)))
+    def pName: Parser[Elem] = elem("name", _.is_name)
 
     /* Args */
     def pSingle_Arg(pred: Token => Boolean): Parser[Single_Arg] = pAtom(pred) ^^ (Single_Arg(_))
@@ -678,7 +673,7 @@ object Linter {
     val name: String = "implicit_rule"
 
     override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
-      case Simple_Method(Name("rule", _), range, _, Args(Nil, _)) =>
+      case Simple_Method(Ranged_Token(_, "rule", _), range, _, Args(Nil, _)) =>
         report("Do not use implicit rule", range, None)
       case Combined_Method(left, _, right, _, _) =>
         lint_apply(left, report).orElse(lint_apply(right, report))
@@ -691,8 +686,8 @@ object Linter {
     val name: String = "complex_isar_proof"
 
     def is_complex(method: Method): Boolean = method match {
-      case Simple_Method(Name(name, _), _, _, _) => name == "auto"
-      case Combined_Method(left, _, right, _, _) => is_complex(left) || is_complex(right)
+      case Simple_Method(Ranged_Token(_, name, _), _, _, _) => name == "auto"
+      case Combined_Method(left, _, right, _, _)            => is_complex(left) || is_complex(right)
     }
 
     override def lint_isar_proof(method: Option[Method], report: Reporter): Option[Lint_Result] =
