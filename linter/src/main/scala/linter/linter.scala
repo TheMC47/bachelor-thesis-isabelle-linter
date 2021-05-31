@@ -95,10 +95,6 @@ object Linter {
     def unapply(r: Ranged_Token): Option[(Token.Kind.Value, String, Text.Range)] =
       Some(r.token.kind, r.source, r.range)
 
-    def list_range(ranges: List[Text.Range]): Text.Range = ranges match {
-      case rs @ (head :: _) => Text.Range(head.start, rs.last.stop)
-      case Nil              => Text.Range(0)
-    }
   }
 
   case class Parsed_Command(
