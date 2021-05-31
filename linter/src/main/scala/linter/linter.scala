@@ -598,13 +598,13 @@ object Linter {
     val name: String = "simplifier_on_unnamed_lemma"
 
     override def parser(report: Reporter): Parser[Some[Lint_Result]] =
-      pCommand("lemma") ~> pSqBracketed(pAttributes)
-        .map(_.find(attr => List("simp", "cong").contains(attr.content)))
-        .withFilter(_.isDefined)
-        .map(_.get)
-        .map(ranged_token =>
-          report("Don't use simplifier attributes on unnamed lemmas", ranged_token.range, None)
-        )
+      pCommand("lemma") ~> pSqBracketed(pAttributes) >> {
+        _.find(List("simp", "cong") contains _.content) match {
+          case None => failure("no match")
+          case Some(token) =>
+            success(report("Don't use simplifier attributes on unnamed lemmas", token.range, None))
+        }
+      }
   }
 
   object Lemma_Transforming_Attributes extends Parser_Lint {
@@ -612,13 +612,13 @@ object Linter {
     val name: String = "lemma_transforming_attributes"
 
     override def parser(report: Reporter): Parser[Some[Lint_Result]] =
-      (pCommand("lemma") ~ pIdent.?) ~> pSqBracketed(pAttributes)
-        .map(_.find(attr => List("simplified", "rule_format").contains(attr.content)))
-        .withFilter(_.isDefined)
-        .map(_.get)
-        .map(ranged_token =>
-          report("Don't use transforming attributes on lemmas", ranged_token.range, None)
-        )
+      (pCommand("lemma") ~ pIdent.?) ~> pSqBracketed(pAttributes) >> {
+        _.find(List("simplified", "rule_format") contains _.content) match {
+          case None => failure("no match")
+          case Some(token) =>
+            success(report("Don't use transforming attributes on lemmas", ranged_token.range, None))
+        }
+      }
   }
 
   /* Lints that use the parsed document structure
