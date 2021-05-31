@@ -226,7 +226,7 @@ object Linter {
   case class Unparsed(val tokens: List[Ranged_Token]) extends DocumentElement(Text.Range(0))
   case class Failed(val string: String) extends DocumentElement(Text.Range(0))
 
-  object TokenParsers extends Parsers {
+  trait TokenParsers extends Parsers {
     type Elem = Ranged_Token
 
     /* Utilities */
@@ -371,6 +371,8 @@ object Linter {
     def parse[T](p: Parser[T], in: List[Elem]): ParseResult[T] =
       p(TokenReader(in filterNot (_.is_space)))
   }
+
+  object TokenParsers extends TokenParsers
 
   /* ==== Linting ====
    * A Lint needs to define a function, lint, that takes a Parsed_Command and optionally returns a
@@ -574,30 +576,28 @@ object Linter {
 
   /* Lints that are parsers
    * */
-  abstract class Parser_Lint extends Lint {
+  abstract class Parser_Lint extends Lint with TokenParsers {
 
-    def parser(report: Reporter): TokenParsers.Parser[Some[Lint_Result]]
+    def parser(report: Reporter): Parser[Some[Lint_Result]]
 
     def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] =
-      TokenParsers.parse(parser(report), command.tokens) match {
-        case TokenParsers.Success(result, _) => result
-        case _                               => None
+      parse(parser(report), command.tokens) match {
+        case Success(result, _) => result
+        case _                  => None
       }
   }
 
   object Short_Name extends Parser_Lint {
-    import TokenParsers._
 
     val name: String = "name_too_short"
 
-    override def parser(report: Reporter): TokenParsers.Parser[Some[Lint_Result]] =
+    override def parser(report: Reporter): Parser[Some[Lint_Result]] =
       pCommand("fun", "definition") ~> elem("ident", _.content.size < 2) ^^ (token =>
         report(s"""Name "${token.content}" too short""", token.range, None)
       )
   }
 
   object Unnamed_Lemma_Simplifier_Attributes extends Parser_Lint {
-    import TokenParsers._
 
     val name: String = "simplifier_on_unnamed_lemma"
 
@@ -612,7 +612,6 @@ object Linter {
   }
 
   object Lemma_Transforming_Attributes extends Parser_Lint {
-    import TokenParsers._
 
     val name: String = "lemma_transforming_attributes"
 
