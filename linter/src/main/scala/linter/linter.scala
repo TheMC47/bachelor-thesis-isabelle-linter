@@ -605,7 +605,7 @@ object Linter {
         _.find(List("simplified", "rule_format") contains _.content) match {
           case None => failure("no match")
           case Some(token) =>
-            success(report("Don't use transforming attributes on lemmas", ranged_token.range, None))
+            success(report("Don't use transforming attributes on lemmas", token.range, None))
         }
       }
   }
