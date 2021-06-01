@@ -20,7 +20,7 @@ object Linter {
   def lint(
       snapshot: Document.Snapshot,
       lints: List[Lint]
-  ): List[Lint_Result] = {
+  ): Lint_Report = {
 
     val commands = snapshot.node.commands.iterator.toList
     val parsed_commands = mapAccumL[Command, Text.Offset, Parsed_Command](
@@ -32,10 +32,7 @@ object Linter {
       }
     )
 
-    parsed_commands
-      .map(lint_command(_, lints))
-      .flatten
-      .toList
+    lints.foldLeft(Lint_Report.empty)((report, lint) => lint.lint(parsed_commands, report))
   }
 
   case class Ranged_Token(val token: Token, offset: Text.Offset) {
@@ -375,6 +372,15 @@ object Linter {
     val node_name: Document.Node.Name = command.node_name
   }
 
+  object Lint_Report {
+    val empty: Lint_Report = Lint_Report(Nil)
+  }
+
+  case class Lint_Report(val results: List[Lint_Result]) {
+
+    def add_result(result: Lint_Result): Lint_Report = Lint_Report(results :+ result)
+  }
+
   type Reporter = (String, Text.Range, Option[(String, String)]) => Some[Lint_Result]
 
   sealed trait Lint {
@@ -382,19 +388,29 @@ object Linter {
     // The name of the lint. snake_case
     val name: String
 
-    def lint(command: Parsed_Command): Option[Lint_Result] = {
-      lint(
-        command,
-        (message, range, edit) => Some(Lint_Result(name, message, range, edit, command))
-      )
-    }
+    def lint(commands: List[Parsed_Command], report: Lint_Report): Lint_Report
+
+  }
+
+  abstract class Single_Command_Lint extends Lint {
+
+    def lint(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
+      commands
+        .map(command =>
+          lint(
+            command,
+            (message, range, edit) => Some(Lint_Result(name, message, range, edit, command))
+          )
+        )
+        .flatten
+        .foldLeft(report)((report, result) => report.add_result(result))
 
     def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result]
   }
 
   /* Lints that use raw commands
    * */
-  abstract class Raw_Command_Lint extends Lint {
+  abstract class Raw_Command_Lint extends Single_Command_Lint {
     def lint_command(
         command: Command,
         report: Reporter
@@ -404,7 +420,7 @@ object Linter {
       lint_command(command.command, report)
   }
 
-  object Debug_Command extends Lint {
+  object Debug_Command extends Single_Command_Lint {
 
     val name: String = "debug_command"
 
@@ -416,7 +432,7 @@ object Linter {
   /* Lints that use a raw token stream
    * */
 
-  abstract class Raw_Token_Stream_Lint extends Lint {
+  abstract class Raw_Token_Stream_Lint extends Single_Command_Lint {
     def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Result]
 
     def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] =
@@ -561,7 +577,7 @@ object Linter {
 
   /* Lints that are parsers
    * */
-  abstract class Parser_Lint extends Lint with TokenParsers {
+  abstract class Parser_Lint extends Single_Command_Lint with TokenParsers {
 
     def parser(report: Reporter): Parser[Some[Lint_Result]]
 
@@ -612,7 +628,7 @@ object Linter {
 
   /* Lints that use the parsed document structure
    * */
-  abstract class Structure_Lint extends Lint {
+  abstract class Structure_Lint extends Single_Command_Lint {
 
     def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = None
 
