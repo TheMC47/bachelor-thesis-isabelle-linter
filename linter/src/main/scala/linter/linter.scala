@@ -38,17 +38,6 @@ object Linter {
       .toList
   }
 
-  def lint_command(
-      command: Command,
-      snapshot: Document.Snapshot,
-      lints: List[Lint]
-  ): Option[Lint_Result] =
-    if (command == Command.empty) None
-    else lint_command(Parsed_Command(command, snapshot, 0), lints)
-
-  def lint_command(command: Parsed_Command, lints: List[Lint]): Option[Lint_Result] =
-    lints.toStream.map(_.lint(command)).find(_.isDefined).flatten
-
   case class Ranged_Token(val token: Token, offset: Text.Offset) {
     /* Redefining functions from Token, to save a level of inderection */
 
