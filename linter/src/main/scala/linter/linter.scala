@@ -384,7 +384,10 @@ object Linter {
 
   case class Lint_Report(val results: List[Lint_Result]) {
 
-    def add_result(result: Lint_Result): Lint_Report = Lint_Report(results :+ result)
+    def add_result(result: Lint_Result): Lint_Report = Lint_Report(result :: results)
+
+    def command_lint(id: Document_ID.Command): List[Lint_Result] =
+      results.filter(_.command.command.id == id)
   }
 
   type Reporter = (String, Text.Range, Option[(String, String)]) => Some[Lint_Result]
