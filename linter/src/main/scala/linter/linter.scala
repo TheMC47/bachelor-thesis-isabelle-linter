@@ -401,6 +401,12 @@ object Linter {
 
   }
 
+  abstract class Proper_Commands_Lint extends Lint {
+    def lint(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
+      lint_proper(commands.filter(_.command.is_proper), report)
+
+    def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report
+  }
   abstract class Single_Command_Lint extends Lint {
 
     def lint(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
