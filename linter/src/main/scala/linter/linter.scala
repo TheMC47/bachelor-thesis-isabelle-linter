@@ -467,6 +467,50 @@ object Linter {
       }
 
   }
+
+  object Unrestricted_Auto extends Proper_Commands_Lint {
+    val name: String = "unrestricted_auto"
+
+    private def is_terminal(command: Parsed_Command): Boolean =
+      List("sorry", "oops", "done", "\\<proof>").contains(command.kind)
+
+    private def are_unrestricted(modifiers: List[Method.Modifier]): Boolean =
+      !modifiers.exists(_.isInstanceOf[Method.Modifier.Restrict])
+
+    private def is_unrestricted_auto__method(method: Method): Boolean = method match {
+
+      case Simple_Method(name, range, modifiers, args) =>
+        name.content == "auto" && are_unrestricted(modifiers)
+
+      case _ => false
+    }
+
+    private def is_unrestricted_auto(element: DocumentElement): Boolean = element match {
+      case Apply(method, range) => is_unrestricted_auto__method(method)
+      case _                    => false
+    }
+
+    private def report_lint(apply: Parsed_Command, report: Lint_Report): Lint_Report =
+      report.add_result(
+        Lint_Result(
+          name,
+          "Do not use unrestricted auto as a non-terminal proof method",
+          apply.range,
+          None,
+          apply
+        )
+      )
+
+    @tailrec
+    def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
+      commands match {
+        case (apply @ Parsed_Command("apply")) :: next_command :: next
+            if !is_terminal(next_command) && is_unrestricted_auto(apply.parsed) =>
+          lint_proper(next_command :: next, report_lint(apply, report))
+        case _ :: next => lint_proper(next, report)
+        case Nil       => report
+      }
+  }
   abstract class Single_Command_Lint extends Lint {
 
     def lint(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
