@@ -432,6 +432,41 @@ object Linter {
         case Nil       => report
       }
   }
+
+  object Use_By extends Proper_Commands_Lint {
+
+    val name: String = "use_by"
+
+    private def report_lint(apply_script: List[Parsed_Command], report: Lint_Report): Lint_Report =
+      report.add_result(
+        Lint_Result(
+          name,
+          "Use by instead",
+          apply_script.head.range,
+          None,
+          apply_script.head
+        )
+      )
+
+    @tailrec
+    def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
+      commands match {
+        case Parsed_Command("lemma")
+            :: (apply1 @ Parsed_Command("apply"))
+            :: (apply2 @ Parsed_Command("apply"))
+            :: (done @ Parsed_Command("done"))
+            :: next =>
+          lint_proper(next, report_lint(apply1 :: apply2 :: done :: Nil, report))
+        case Parsed_Command("lemma")
+            :: (apply @ Parsed_Command("apply"))
+            :: (done @ Parsed_Command("done"))
+            :: next =>
+          lint_proper(next, report_lint(apply :: done :: Nil, report))
+        case _ :: next => lint_proper(next, report)
+        case Nil       => report
+      }
+
+  }
   abstract class Single_Command_Lint extends Lint {
 
     def lint(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
