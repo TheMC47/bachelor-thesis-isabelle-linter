@@ -4,7 +4,7 @@ import isabelle._
 
 class Linter_Interface {
 
-  var lint_cache: Map[Document.Node.Name, (Document.Version, List[Linter.Lint_Result])] = Map.empty
+  var lint_cache: Map[Document.Node.Name, (Document.Version, Linter.Lint_Report)] = Map.empty
 
   private def update_cache(snapshot: Document.Snapshot): Unit = {
     lazy val new_cache =
@@ -17,7 +17,7 @@ class Linter_Interface {
 
   def lint_results(snapshot: Document.Snapshot): List[Linter.Lint_Result] = {
     update_cache(snapshot)
-    lint_cache(snapshot.node_name)._2
+    lint_cache(snapshot.node_name)._2.results
   }
 
   def lint_ranges(snapshot: Document.Snapshot): List[Text.Range] =

@@ -6,6 +6,7 @@ import isabelle._
 import scala.collection.immutable
 import scala.util.parsing.combinator._
 import scala.util.parsing.input
+import scala.annotation.tailrec
 
 object Linter {
 
@@ -20,7 +21,7 @@ object Linter {
   def lint(
       snapshot: Document.Snapshot,
       lints: List[Lint]
-  ): List[Lint_Result] = {
+  ): Lint_Report = {
 
     val commands = snapshot.node.commands.iterator.toList
     val parsed_commands = mapAccumL[Command, Text.Offset, Parsed_Command](
@@ -32,22 +33,8 @@ object Linter {
       }
     )
 
-    parsed_commands
-      .map(lint_command(_, lints))
-      .flatten
-      .toList
+    lints.foldLeft(Lint_Report.empty)((report, lint) => lint.lint(parsed_commands, report))
   }
-
-  def lint_command(
-      command: Command,
-      snapshot: Document.Snapshot,
-      lints: List[Lint]
-  ): Option[Lint_Result] =
-    if (command == Command.empty) None
-    else lint_command(Parsed_Command(command, snapshot, 0), lints)
-
-  def lint_command(command: Parsed_Command, lints: List[Lint]): Option[Lint_Result] =
-    lints.toStream.map(_.lint(command)).find(_.isDefined).flatten
 
   case class Ranged_Token(val token: Token, offset: Text.Offset) {
     /* Redefining functions from Token, to save a level of inderection */
@@ -97,12 +84,18 @@ object Linter {
 
   }
 
+  object Parsed_Command {
+    def unapply(command: Parsed_Command): Option[String] = Some(command.kind)
+  }
+
   case class Parsed_Command(
       val command: Command,
       snapshot: Document.Snapshot,
       offset: Text.Offset
   ) {
     val node_name: Document.Node.Name = snapshot.node_name
+
+    val kind: String = command.span.kind.toString()
 
     val range: Text.Range = command.range + offset
 
@@ -386,6 +379,18 @@ object Linter {
     val node_name: Document.Node.Name = command.node_name
   }
 
+  object Lint_Report {
+    val empty: Lint_Report = Lint_Report(Nil)
+  }
+
+  case class Lint_Report(val results: List[Lint_Result]) {
+
+    def add_result(result: Lint_Result): Lint_Report = Lint_Report(result :: results)
+
+    def command_lint(id: Document_ID.Command): List[Lint_Result] =
+      results.filter(_.command.command.id == id)
+  }
+
   type Reporter = (String, Text.Range, Option[(String, String)]) => Some[Lint_Result]
 
   sealed trait Lint {
@@ -393,19 +398,189 @@ object Linter {
     // The name of the lint. snake_case
     val name: String
 
-    def lint(command: Parsed_Command): Option[Lint_Result] = {
-      lint(
-        command,
-        (message, range, edit) => Some(Lint_Result(name, message, range, edit, command))
+    def lint(commands: List[Parsed_Command], report: Lint_Report): Lint_Report
+
+  }
+
+  abstract class Proper_Commands_Lint extends Lint {
+    def lint(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
+      lint_proper(commands.filter(_.command.is_proper), report)
+
+    def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report
+  }
+
+  object Apply_Isar_Switch extends Proper_Commands_Lint {
+
+    val name = "apply_isar_switch"
+
+    @tailrec
+    def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
+      commands match {
+        case Parsed_Command("apply") :: (proof @ Parsed_Command("proof")) :: next => {
+          val new_report = report.add_result(
+            Lint_Result(
+              name,
+              "Do not switch between apply-style and ISAR proofs",
+              proof.range,
+              None,
+              proof
+            )
+          )
+          lint_proper(next, new_report)
+        }
+        case _ :: next => lint_proper(next, report)
+        case Nil       => report
+      }
+  }
+
+  object Use_By extends Proper_Commands_Lint {
+
+    val name: String = "use_by"
+
+    private def report_lint(apply_script: List[Parsed_Command], report: Lint_Report): Lint_Report =
+      report.add_result(
+        Lint_Result(
+          name,
+          "Use by instead",
+          apply_script.head.range,
+          None,
+          apply_script.head
+        )
       )
+
+    @tailrec
+    def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
+      commands match {
+        case Parsed_Command("lemma")
+            :: (apply1 @ Parsed_Command("apply"))
+            :: (apply2 @ Parsed_Command("apply"))
+            :: (done @ Parsed_Command("done"))
+            :: next =>
+          lint_proper(next, report_lint(apply1 :: apply2 :: done :: Nil, report))
+        case Parsed_Command("lemma")
+            :: (apply @ Parsed_Command("apply"))
+            :: (done @ Parsed_Command("done"))
+            :: next =>
+          lint_proper(next, report_lint(apply :: done :: Nil, report))
+        case _ :: next => lint_proper(next, report)
+        case Nil       => report
+      }
+
+  }
+
+  object Unrestricted_Auto extends Proper_Commands_Lint {
+    val name: String = "unrestricted_auto"
+
+    private def is_terminal(command: Parsed_Command): Boolean =
+      List("sorry", "oops", "done", "\\<proof>").contains(command.kind)
+
+    private def are_unrestricted(modifiers: List[Method.Modifier]): Boolean =
+      !modifiers.exists(_.isInstanceOf[Method.Modifier.Restrict])
+
+    private def is_unrestricted_auto__method(method: Method): Boolean = method match {
+
+      case Simple_Method(name, range, modifiers, args) =>
+        name.content == "auto" && are_unrestricted(modifiers)
+
+      case _ => false
     }
+
+    private def is_unrestricted_auto(element: DocumentElement): Boolean = element match {
+      case Apply(method, range) => is_unrestricted_auto__method(method)
+      case _                    => false
+    }
+
+    private def report_lint(apply: Parsed_Command, report: Lint_Report): Lint_Report =
+      report.add_result(
+        Lint_Result(
+          name,
+          "Do not use unrestricted auto as a non-terminal proof method",
+          apply.range,
+          None,
+          apply
+        )
+      )
+
+    @tailrec
+    def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
+      commands match {
+        case (apply @ Parsed_Command("apply")) :: next_command :: next
+            if !is_terminal(next_command) && is_unrestricted_auto(apply.parsed) =>
+          lint_proper(next_command :: next, report_lint(apply, report))
+        case _ :: next => lint_proper(next, report)
+        case Nil       => report
+      }
+  }
+
+  object Single_Step_Low_Level_Apply extends Proper_Commands_Lint {
+
+    val name: String = "low_level_chain"
+
+    private def is_low_level_method(method: Method): Boolean = method match {
+      case Simple_Method(name, range, modifiers, args) =>
+        List("erule", "rule", "simp", "clarsimp").contains(name.content)
+      case _ => false
+    }
+
+    private def is_low_level_apply(command: Parsed_Command): Boolean = command.parsed match {
+      case Apply(method, range) => is_low_level_method(method)
+      case _                    => false
+    }
+
+    def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report = {
+      val (low_level_commands, rest) =
+        commands.dropWhile(!is_low_level_apply(_)).span(is_low_level_apply(_))
+
+      val new_report =
+        if (low_level_commands.length >= 5)
+          report.add_result(
+            Lint_Result(
+              name,
+              "Consider compressing low level proof methods into automated search",
+              low_level_commands.head.range,
+              None,
+              low_level_commands.head
+            )
+          )
+        else
+          report
+
+      if (rest.isEmpty)
+        new_report
+      else lint_proper(rest, new_report)
+    }
+  }
+
+  abstract class Single_Command_Lint extends Lint {
+
+    def lint(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
+      commands
+        .map(command =>
+          lint(
+            command,
+            (message, range, edit) => Some(Lint_Result(name, message, range, edit, command))
+          )
+        )
+        .flatten
+        .foldLeft(report)((report, result) => report.add_result(result))
 
     def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result]
   }
 
+  object Use_Isar extends Single_Command_Lint {
+
+    val name: String = "use_isar"
+
+    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] = command match {
+      case (c @ Parsed_Command("apply")) =>
+        report("Use Isar instead of apply-scripts", c.range, None)
+      case _ => None
+    }
+  }
+
   /* Lints that use raw commands
    * */
-  abstract class Raw_Command_Lint extends Lint {
+  abstract class Raw_Command_Lint extends Single_Command_Lint {
     def lint_command(
         command: Command,
         report: Reporter
@@ -415,7 +590,7 @@ object Linter {
       lint_command(command.command, report)
   }
 
-  object Debug_Command extends Lint {
+  object Debug_Command extends Single_Command_Lint {
 
     val name: String = "debug_command"
 
@@ -427,7 +602,7 @@ object Linter {
   /* Lints that use a raw token stream
    * */
 
-  abstract class Raw_Token_Stream_Lint extends Lint {
+  abstract class Raw_Token_Stream_Lint extends Single_Command_Lint {
     def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Result]
 
     def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] =
@@ -572,7 +747,7 @@ object Linter {
 
   /* Lints that are parsers
    * */
-  abstract class Parser_Lint extends Lint with TokenParsers {
+  abstract class Parser_Lint extends Single_Command_Lint with TokenParsers {
 
     def parser(report: Reporter): Parser[Some[Lint_Result]]
 
@@ -616,14 +791,14 @@ object Linter {
         _.find(List("simplified", "rule_format") contains _.content) match {
           case None => failure("no match")
           case Some(token) =>
-            success(report("Don't use transforming attributes on lemmas", ranged_token.range, None))
+            success(report("Don't use transforming attributes on lemmas", token.range, None))
         }
       }
   }
 
   /* Lints that use the parsed document structure
    * */
-  abstract class Structure_Lint extends Lint {
+  abstract class Structure_Lint extends Single_Command_Lint {
 
     def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = None
 
@@ -674,6 +849,35 @@ object Linter {
       } yield report("Keep initial proof methods simple", s_method.range, None).get
   }
 
+  object Force_Failure extends Structure_Lint {
+    val name: String = "force_failure"
+
+    override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
+      case Simple_Method(Ranged_Token(_, "simp", _), range, modifiers, args) =>
+        report("Consider forciing failure", range, None)
+      case _ => None
+    }
+  }
+
+  object Apply_Auto_Struct extends Structure_Lint {
+    val name: String = "auto_structure_composition"
+
+    private def has_auto(method: Method): Boolean = method match {
+      case Simple_Method(name, range, modifiers, args) => name.source == "auto"
+      case Combined_Method(left, combinator, right, range, modifiers) =>
+        has_auto(left) || has_auto(right)
+
+    }
+
+    override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
+      case Simple_Method(name, range, modifiers, args) => None
+      case Combined_Method(left, Method.Combinator.Struct, right, range, modifiers) =>
+        if (has_auto(left)) report("Do not use apply;…", range, None) else None
+      case Combined_Method(left, _, right, range, modifiers) =>
+        lint_apply(left, report).orElse(lint_apply(right, report))
+    }
+  }
+
   object Print_Structure extends Structure_Lint {
 
     val name: String = "print_structure"
@@ -686,6 +890,13 @@ object Linter {
   }
 
   val all_lints: List[Lint] = List(
+    Apply_Isar_Switch,
+    Use_By,
+    Unrestricted_Auto,
+    Single_Step_Low_Level_Apply,
+    // Force_Failure,
+    // Use_Isar,
+    Apply_Auto_Struct,
     Axiomatization_With_Where,
     Proof_Finder,
     Counter_Example_Finder,
