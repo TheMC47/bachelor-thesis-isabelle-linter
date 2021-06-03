@@ -8,7 +8,10 @@ class Linter_Interface {
 
   private def update_cache(snapshot: Document.Snapshot): Unit = {
     lazy val new_cache =
-      lint_cache + (snapshot.node_name -> (snapshot.version, Linter.lint(snapshot, Linter.all_lints)))
+      lint_cache + (snapshot.node_name -> (snapshot.version, Linter.lint(
+        snapshot,
+        Linter.all_lints
+      )))
     lint_cache get snapshot.node_name match {
       case None               => lint_cache = new_cache
       case Some((version, _)) => if (snapshot.version.id < version.id) lint_cache = new_cache
@@ -20,8 +23,14 @@ class Linter_Interface {
     lint_cache(snapshot.node_name)._2.results
   }
 
-  def lint_ranges(snapshot: Document.Snapshot): List[Text.Range] =
-    lint_results(snapshot).map(_.range)
+  def lint_ranges(
+      snapshot: Document.Snapshot,
+      line_range: Text.Range = Text.Range.full
+  ): List[Text.Range] =
+    lint_results(snapshot)
+      .map(_.range)
+      .filter(lint_range => !line_range.apart(lint_range))
+      .map(_.restrict(line_range))
 
 }
 
