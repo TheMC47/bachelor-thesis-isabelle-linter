@@ -6,6 +6,7 @@ import isabelle._
 import scala.collection.immutable
 import scala.util.parsing.combinator._
 import scala.util.parsing.input
+import scala.annotation.tailrec
 
 object Linter {
 
@@ -406,6 +407,30 @@ object Linter {
       lint_proper(commands.filter(_.command.is_proper), report)
 
     def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report
+  }
+
+  object Apply_Isar_Switch extends Proper_Commands_Lint {
+
+    val name = "apply_isar_switch"
+
+    @tailrec
+    def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
+      commands match {
+        case Parsed_Command("apply") :: (proof @ Parsed_Command("proof")) :: next => {
+          val new_report = report.add_result(
+            Lint_Result(
+              name,
+              "Do not switch between apply-style and ISAR proofs",
+              proof.range,
+              None,
+              proof
+            )
+          )
+          lint_proper(next, new_report)
+        }
+        case _ :: next => lint_proper(next, report)
+        case Nil       => report
+      }
   }
   abstract class Single_Command_Lint extends Lint {
 
