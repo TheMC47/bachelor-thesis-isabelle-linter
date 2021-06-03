@@ -859,6 +859,25 @@ object Linter {
     }
   }
 
+  object Apply_Auto_Struct extends Structure_Lint {
+    val name: String = "auto_structure_composition"
+
+    private def has_auto(method: Method): Boolean = method match {
+      case Simple_Method(name, range, modifiers, args) => name.source == "auto"
+      case Combined_Method(left, combinator, right, range, modifiers) =>
+        has_auto(left) || has_auto(right)
+
+    }
+
+    override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
+      case Simple_Method(name, range, modifiers, args) => None
+      case Combined_Method(left, Method.Combinator.Struct, right, range, modifiers) =>
+        if (has_auto(left)) report("Do not use apply;…", range, None) else None
+      case Combined_Method(left, _, right, range, modifiers) =>
+        lint_apply(left, report).orElse(lint_apply(right, report))
+    }
+  }
+
   object Print_Structure extends Structure_Lint {
 
     val name: String = "print_structure"
@@ -876,7 +895,8 @@ object Linter {
     Unrestricted_Auto,
     Single_Step_Low_Level_Apply,
     // Force_Failure,
-    Use_Isar,
+    // Use_Isar,
+    Apply_Auto_Struct,
     Axiomatization_With_Where,
     Proof_Finder,
     Counter_Example_Finder,
