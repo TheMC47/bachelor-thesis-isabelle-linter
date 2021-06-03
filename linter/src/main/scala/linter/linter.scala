@@ -83,12 +83,18 @@ object Linter {
 
   }
 
+  object Parsed_Command {
+    def unapply(command: Parsed_Command): Option[String] = Some(command.kind)
+  }
+
   case class Parsed_Command(
       val command: Command,
       snapshot: Document.Snapshot,
       offset: Text.Offset
   ) {
     val node_name: Document.Node.Name = snapshot.node_name
+
+    val kind: String = command.span.kind.toString()
 
     val range: Text.Range = command.range + offset
 
