@@ -614,9 +614,16 @@ object Linter {
     val name: String = "axiomatization_with_where"
 
     def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Result] = tokens match {
-      case Ranged_Token(Token.Kind.COMMAND, "axiomatization", range) :: next
-          if next.exists(_.content == "where") =>
-        report("Don't use axiomatization", range, None)
+      case Ranged_Token(Token.Kind.COMMAND, "axiomatization", range) :: next =>
+        next.dropWhile(_.source != "where") match {
+          case xs @ (_ :: _) =>
+            report(
+              "Don't use axiomatization",
+              Text.Range(xs.head.range.start, xs.last.range.stop),
+              None
+            )
+          case Nil => None
+        }
       case _ => None
     }
   }
