@@ -511,6 +511,46 @@ object Linter {
         case Nil       => report
       }
   }
+
+  object Single_Step_Low_Level_Apply extends Proper_Commands_Lint {
+
+    val name: String = "low_level_chain"
+
+    private def is_low_level_method(method: Method): Boolean = method match {
+      case Simple_Method(name, range, modifiers, args) =>
+        List("erule", "rule", "simp", "clarsimp").contains(name.content)
+      case _ => false
+    }
+
+    private def is_low_level_apply(command: Parsed_Command): Boolean = command.parsed match {
+      case Apply(method, range) => is_low_level_method(method)
+      case _                    => false
+    }
+
+    def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report = {
+      val (low_level_commands, rest) =
+        commands.dropWhile(!is_low_level_apply(_)).span(is_low_level_apply(_))
+
+      val new_report =
+        if (low_level_commands.length >= 5)
+          report.add_result(
+            Lint_Result(
+              name,
+              "Consider compressing low level proof methods into automated search",
+              low_level_commands.head.range,
+              None,
+              low_level_commands.head
+            )
+          )
+        else
+          report
+
+      if (rest.isEmpty)
+        new_report
+      else lint_proper(rest, new_report)
+    }
+  }
+
   abstract class Single_Command_Lint extends Lint {
 
     def lint(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
@@ -525,6 +565,17 @@ object Linter {
         .foldLeft(report)((report, result) => report.add_result(result))
 
     def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result]
+  }
+
+  object Use_Isar extends Single_Command_Lint {
+
+    val name: String = "use_isar"
+
+    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] = command match {
+      case (c @ Parsed_Command("apply")) =>
+        report("Use Isar instead of apply-scripts", c.range, None)
+      case _ => None
+    }
   }
 
   /* Lints that use raw commands
@@ -798,6 +849,16 @@ object Linter {
       } yield report("Keep initial proof methods simple", s_method.range, None).get
   }
 
+  object Force_Failure extends Structure_Lint {
+    val name: String = "force_failure"
+
+    override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
+      case Simple_Method(Ranged_Token(_, "simp", _), range, modifiers, args) =>
+        report("Consider forciing failure", range, None)
+      case _ => None
+    }
+  }
+
   object Print_Structure extends Structure_Lint {
 
     val name: String = "print_structure"
@@ -810,6 +871,12 @@ object Linter {
   }
 
   val all_lints: List[Lint] = List(
+    Apply_Isar_Switch,
+    Use_By,
+    Unrestricted_Auto,
+    Single_Step_Low_Level_Apply,
+    // Force_Failure,
+    Use_Isar,
     Axiomatization_With_Where,
     Proof_Finder,
     Counter_Example_Finder,
