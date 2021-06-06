@@ -34,6 +34,12 @@ class Linter_Interface {
       .filter(lint_range => !line_range.apart(lint_range))
       .map(_.restrict(line_range))
 
+  def command_lints(
+      snapshot: Document.Snapshot,
+      command_id: Document_ID.Command
+  ): List[Linter.Lint_Result] =
+    lint_results(snapshot).filter(_.command.command.id == command_id)
+
 }
 
 class Linter_Variable {
