@@ -20,7 +20,9 @@ class Linter_Interface {
 
   def lint_results(snapshot: Document.Snapshot): List[Linter.Lint_Result] = {
     update_cache(snapshot)
-    lint_cache(snapshot.node_name)._2.results
+    lint_cache(snapshot.node_name)._2.results.sortWith((r1, r2) =>
+      Text.Range.Ordering.compare(r1.range, r2.range) < 0
+    )
   }
 
   def lint_ranges(
