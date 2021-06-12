@@ -149,11 +149,11 @@ object Linter {
 
   object Method {
     /* Modifiers */
-    trait Modifier
+    abstract class Modifier(val range: Text.Range)
     object Modifier {
-      object Try extends Modifier // ?
-      object Rep1 extends Modifier // +
-      case class Restrict(val n: Int) extends Modifier // [n]
+      case class Try(override val range: Text.Range) extends Modifier(range) // ?
+      case class Rep1(override val range: Text.Range) extends Modifier(range) // +
+      case class Restrict(val n: Int, override val range: Text.Range) extends Modifier(range) // [n]
     }
 
     /* Combinators */
@@ -170,9 +170,15 @@ object Linter {
       case Some(value) =>
         method match {
           case Combined_Method(left, combinator, right, range, modifiers) =>
-            Combined_Method(left, combinator, right, range, modifiers :+ value)
+            Combined_Method(
+              left,
+              combinator,
+              right,
+              Text.Range(range.start, value.range.stop),
+              modifiers :+ value
+            )
           case Simple_Method(name, range, modifiers, args) =>
-            Simple_Method(name, range, modifiers :+ value, args)
+            Simple_Method(name, Text.Range(range.start, value.range.stop), modifiers :+ value, args)
         }
     }
   }
@@ -286,10 +292,14 @@ object Linter {
     object MethodParsers {
 
       /* Modifiers */
-      def pTry: Parser[Method.Modifier] = pKeyword("?") ^^^ Method.Modifier.Try
-      def pRep1: Parser[Method.Modifier] = pKeyword("+") ^^^ Method.Modifier.Rep1
+      def pTry: Parser[Method.Modifier] = pKeyword("?") ^^ { token =>
+        Method.Modifier.Try(token.range)
+      }
+      def pRep1: Parser[Method.Modifier] = pKeyword("+") ^^ { token =>
+        Method.Modifier.Rep1(token.range)
+      }
       def pRestrict: Parser[Method.Modifier] = pSqBracketed(
-        pNat ^^ (n => Method.Modifier.Restrict(n.content.toInt))
+        pNat ^^ (n => Method.Modifier.Restrict(n.content.toInt, n.range))
       )
       def pModifier: Parser[Method.Modifier] = pTry | pRep1 | pRestrict
 
