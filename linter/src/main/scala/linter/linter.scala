@@ -889,7 +889,7 @@ object Linter {
     override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
       case Simple_Method(name, range, modifiers, args) => None
       case Combined_Method(left, Method.Combinator.Struct, right, range, modifiers) =>
-        if (has_auto(left)) report("Do not use apply;…", range, None) else None
+        if (has_auto(left)) report("Do not use apply (auto;...)", range, None) else None
       case Combined_Method(left, _, right, range, modifiers) =>
         lint_apply(left, report).orElse(lint_apply(right, report))
     }
