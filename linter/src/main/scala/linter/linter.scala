@@ -528,7 +528,7 @@ object Linter {
 
     private def is_low_level_method(method: Method): Boolean = method match {
       case Simple_Method(name, range, modifiers, args) =>
-        List("erule", "rule", "simp", "clarsimp").contains(name.content)
+        List("erule", "rule", "simp", "clarsimp", "rule_tac").contains(name.content)
       case _ => false
     }
 
