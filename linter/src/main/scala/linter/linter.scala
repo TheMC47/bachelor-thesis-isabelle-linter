@@ -149,11 +149,11 @@ object Linter {
 
   object Method {
     /* Modifiers */
-    trait Modifier
+    abstract class Modifier(val range: Text.Range)
     object Modifier {
-      object Try extends Modifier // ?
-      object Rep1 extends Modifier // +
-      case class Restrict(val n: Int) extends Modifier // [n]
+      case class Try(override val range: Text.Range) extends Modifier(range) // ?
+      case class Rep1(override val range: Text.Range) extends Modifier(range) // +
+      case class Restrict(val n: Int, override val range: Text.Range) extends Modifier(range) // [n]
     }
 
     /* Combinators */
@@ -170,9 +170,15 @@ object Linter {
       case Some(value) =>
         method match {
           case Combined_Method(left, combinator, right, range, modifiers) =>
-            Combined_Method(left, combinator, right, range, modifiers :+ value)
+            Combined_Method(
+              left,
+              combinator,
+              right,
+              Text.Range(range.start, value.range.stop),
+              modifiers :+ value
+            )
           case Simple_Method(name, range, modifiers, args) =>
-            Simple_Method(name, range, modifiers :+ value, args)
+            Simple_Method(name, Text.Range(range.start, value.range.stop), modifiers :+ value, args)
         }
     }
   }
@@ -286,10 +292,14 @@ object Linter {
     object MethodParsers {
 
       /* Modifiers */
-      def pTry: Parser[Method.Modifier] = pKeyword("?") ^^^ Method.Modifier.Try
-      def pRep1: Parser[Method.Modifier] = pKeyword("+") ^^^ Method.Modifier.Rep1
+      def pTry: Parser[Method.Modifier] = pKeyword("?") ^^ { token =>
+        Method.Modifier.Try(token.range)
+      }
+      def pRep1: Parser[Method.Modifier] = pKeyword("+") ^^ { token =>
+        Method.Modifier.Rep1(token.range)
+      }
       def pRestrict: Parser[Method.Modifier] = pSqBracketed(
-        pNat ^^ (n => Method.Modifier.Restrict(n.content.toInt))
+        pNat ^^ (n => Method.Modifier.Restrict(n.content.toInt, n.range))
       )
       def pModifier: Parser[Method.Modifier] = pTry | pRep1 | pRestrict
 
@@ -518,7 +528,7 @@ object Linter {
 
     private def is_low_level_method(method: Method): Boolean = method match {
       case Simple_Method(name, range, modifiers, args) =>
-        List("erule", "rule", "simp", "clarsimp").contains(name.content)
+        List("erule", "rule", "simp", "clarsimp", "rule_tac").contains(name.content)
       case _ => false
     }
 
@@ -614,9 +624,16 @@ object Linter {
     val name: String = "axiomatization_with_where"
 
     def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Result] = tokens match {
-      case Ranged_Token(Token.Kind.COMMAND, "axiomatization", range) :: next
-          if next.exists(_.content == "where") =>
-        report("Don't use axiomatization", range, None)
+      case Ranged_Token(Token.Kind.COMMAND, "axiomatization", range) :: next =>
+        next.dropWhile(_.source != "where") match {
+          case xs @ (_ :: _) =>
+            report(
+              "Don't use axiomatization",
+              Text.Range(xs.head.range.start, xs.last.range.stop),
+              None
+            )
+          case Nil => None
+        }
       case _ => None
     }
   }
@@ -872,7 +889,7 @@ object Linter {
     override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
       case Simple_Method(name, range, modifiers, args) => None
       case Combined_Method(left, Method.Combinator.Struct, right, range, modifiers) =>
-        if (has_auto(left)) report("Do not use apply;…", range, None) else None
+        if (has_auto(left)) report("Do not use apply (auto;...)", range, None) else None
       case Combined_Method(left, _, right, range, modifiers) =>
         lint_apply(left, report).orElse(lint_apply(right, report))
     }

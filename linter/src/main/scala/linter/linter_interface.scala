@@ -8,7 +8,10 @@ class Linter_Interface {
 
   private def update_cache(snapshot: Document.Snapshot): Unit = {
     lazy val new_cache =
-      lint_cache + (snapshot.node_name -> (snapshot.version, Linter.lint(snapshot, Linter.all_lints)))
+      lint_cache + (snapshot.node_name -> (snapshot.version, Linter.lint(
+        snapshot,
+        Linter.all_lints
+      )))
     lint_cache get snapshot.node_name match {
       case None               => lint_cache = new_cache
       case Some((version, _)) => if (snapshot.version.id < version.id) lint_cache = new_cache
@@ -17,11 +20,25 @@ class Linter_Interface {
 
   def lint_results(snapshot: Document.Snapshot): List[Linter.Lint_Result] = {
     update_cache(snapshot)
-    lint_cache(snapshot.node_name)._2.results
+    lint_cache(snapshot.node_name)._2.results.sortWith((r1, r2) =>
+      Text.Range.Ordering.compare(r1.range, r2.range) < 0
+    )
   }
 
-  def lint_ranges(snapshot: Document.Snapshot): List[Text.Range] =
-    lint_results(snapshot).map(_.range)
+  def lint_ranges(
+      snapshot: Document.Snapshot,
+      line_range: Text.Range = Text.Range.full
+  ): List[Text.Range] =
+    lint_results(snapshot)
+      .map(_.range)
+      .filter(lint_range => !line_range.apart(lint_range))
+      .map(_.restrict(line_range))
+
+  def command_lints(
+      snapshot: Document.Snapshot,
+      command_id: Document_ID.Command
+  ): List[Linter.Lint_Result] =
+    lint_results(snapshot).filter(_.command.command.id == command_id)
 
 }
 
