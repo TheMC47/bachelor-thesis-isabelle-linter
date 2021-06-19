@@ -666,7 +666,7 @@ object Linter {
             report(
               "Don't use axiomatization",
               Text.Range(xs.head.range.start, xs.last.range.stop),
-              None
+              Some(Edit(list_range(xs.map(_.range)), "", Some("Remove where")))
             )
           case Nil => None
         }
