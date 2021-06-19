@@ -84,6 +84,11 @@ object Linter {
 
   }
 
+  def list_range(ranges: List[Text.Range]): Text.Range = ranges match {
+    case _ :: _ => Text.Range(ranges.head.start, ranges.last.stop)
+    case Nil    => Text.Range.offside
+  }
+
   object Parsed_Command {
     def unapply(command: Parsed_Command): Option[String] = Some(command.kind)
   }
