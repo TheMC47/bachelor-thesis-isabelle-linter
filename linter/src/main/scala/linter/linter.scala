@@ -365,7 +365,9 @@ object Linter {
       chainl1[List[Elem]](pAttribute ^^ { List(_) }, pKeyword(",") ^^^ { _ ::: _ })
 
     /* Putting things together.. */
-    def pCatch: Parser[Unparsed] = elem("any", _ => true).* ^^ Unparsed
+    def pCatch: Parser[Unparsed] = pAny.* ^^ Unparsed
+
+    def pAny: Parser[Elem] = elem("any", _ => true)
 
     def tokenParser: Parser[DocumentElement] = pApply | pIsarProof | pCatch
 
