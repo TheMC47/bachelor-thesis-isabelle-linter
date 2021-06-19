@@ -479,17 +479,38 @@ object Linter {
       }
   }
 
-  object Use_By extends Proper_Commands_Lint {
+  object Use_By extends Proper_Commands_Lint with TokenParsers {
 
     val name: String = "use_by"
+
+    def pRemoveApply: Parser[String] = (pCommand("apply") ~ pSpace.?) ~> pAny.* ^^ mkString
+
+    def pRemoveApplyAndParen: Parser[String] =
+      (pCommand("apply") ~ pSpace.?) ~> (pParened(pAnyBalanced) | pAnyBalanced) ~ pAny.* ^^ {
+        case x ~ y => s"(${mkString(x)})${mkString(y)}"
+      }
+
+    private def edits(apply_script: List[Parsed_Command]): String =
+      apply_script match {
+        case apply1 :: apply2 :: done :: Nil => {
+          val first = doParseTransform(pRemoveApplyAndParen)(apply1)
+          val second = doParseTransform(pRemoveApply)(apply2)
+          s"by $first $second"
+        }
+        case apply :: done :: Nil => {
+          val no_paren = doParseTransform(pRemoveApplyAndParen)(apply)
+          s"by $no_paren"
+        }
+        case _ => error("Expected two or three commands")
+      }
 
     private def report_lint(apply_script: List[Parsed_Command], report: Lint_Report): Lint_Report =
       report.add_result(
         Lint_Result(
           name,
-          "Use by instead",
+          "Use by instead of apply",
           apply_script.head.range,
-          None,
+          Some(Edit(list_range(apply_script map (_.range)), edits(apply_script))),
           apply_script.head
         )
       )
