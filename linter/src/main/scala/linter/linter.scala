@@ -369,6 +369,19 @@ object Linter {
 
     def pAny: Parser[Elem] = elem("any", _ => true)
 
+    def pNotParen: Parser[Elem] = elem("not_paren", t => !(t.is_keyword("(") || t.is_keyword(")")))
+
+    def pWithParen(p: Parser[List[Elem]]): Parser[List[Elem]] = pOpenParen ~ p ~ pClosedParen ^^ {
+      case r ~ ts ~ l => (r :: ts) :+ l
+    }
+
+    def pAnyBalanced: Parser[List[Elem]] = chainl1(
+      pNotParen.*,
+      pWithParen(pAnyBalanced) ^^ { mid => (l: List[Elem], r: List[Elem]) =>
+        l ::: mid ::: r
+      }
+    )
+
     def tokenParser: Parser[DocumentElement] = pApply | pIsarProof | pCatch
 
     def parse[T](p: Parser[T], in: List[Elem], keepSpaces: Boolean= true): ParseResult[T] = {
