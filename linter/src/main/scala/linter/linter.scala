@@ -257,6 +257,8 @@ object Linter {
     def pCommand(name: String): Parser[Elem] = elem(name, _.is_command(name))
     def pCommand(names: String*): Parser[Elem] = anyOf(names.map(pCommand(_)))
 
+    def pSpace: Parser[Elem] = elem("space", _.is_space)
+
     def pKeyword(name: String): Parser[Elem] = elem(name, _.is_keyword(name))
     def pIdent: Parser[Elem] = elem("ident", _.is_ident)
     def pSymIdent: Parser[Elem] = elem("sym_ident", _.is_sym_ident)
