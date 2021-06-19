@@ -84,6 +84,11 @@ object Linter {
 
   }
 
+  def list_range(ranges: List[Text.Range]): Text.Range = ranges match {
+    case _ :: _ => Text.Range(ranges.head.start, ranges.last.stop)
+    case Nil    => Text.Range.offside
+  }
+
   object Parsed_Command {
     def unapply(command: Parsed_Command): Option[String] = Some(command.kind)
   }
@@ -257,6 +262,8 @@ object Linter {
     def pCommand(name: String): Parser[Elem] = elem(name, _.is_command(name))
     def pCommand(names: String*): Parser[Elem] = anyOf(names.map(pCommand(_)))
 
+    def pSpace: Parser[Elem] = elem("space", _.is_space)
+
     def pKeyword(name: String): Parser[Elem] = elem(name, _.is_keyword(name))
     def pIdent: Parser[Elem] = elem("ident", _.is_ident)
     def pSymIdent: Parser[Elem] = elem("sym_ident", _.is_sym_ident)
@@ -363,12 +370,37 @@ object Linter {
       chainl1[List[Elem]](pAttribute ^^ { List(_) }, pKeyword(",") ^^^ { _ ::: _ })
 
     /* Putting things together.. */
-    def pCatch: Parser[Unparsed] = elem("any", _ => true).* ^^ Unparsed
+    def pCatch: Parser[Unparsed] = pAny.* ^^ Unparsed
+
+    def pAny: Parser[Elem] = elem("any", _ => true)
+
+    def pNotParen: Parser[Elem] = elem("not_paren", t => !(t.is_keyword("(") || t.is_keyword(")")))
+
+    def pWithParen(p: Parser[List[Elem]]): Parser[List[Elem]] = pOpenParen ~ p ~ pClosedParen ^^ {
+      case r ~ ts ~ l => (r :: ts) :+ l
+    }
+
+    def pAnyBalanced: Parser[List[Elem]] = chainl1(
+      pNotParen.*,
+      pWithParen(pAnyBalanced) ^^ { mid => (l: List[Elem], r: List[Elem]) =>
+        l ::: mid ::: r
+      }
+    )
 
     def tokenParser: Parser[DocumentElement] = pApply | pIsarProof | pCatch
 
-    def parse[T](p: Parser[T], in: List[Elem]): ParseResult[T] =
-      p(TokenReader(in filterNot (_.is_space)))
+    def doParseTransform(p: Parser[String])(command: Parsed_Command): String =
+      parse(p, command.tokens, true) match {
+        case Success(result, next) => result
+        case n: NoSuccess          => error(s"Failed: $n \n ${command.tokens}")
+      }
+
+    def mkString(tokens: List[Elem]): String = tokens.map(_.source).mkString
+
+    def parse[T](p: Parser[T], in: List[Elem], keepSpaces: Boolean= true): ParseResult[T] = {
+      val processed = if (keepSpaces) in else in.filterNot(_.is_space)
+      p(TokenReader(processed))
+    }
   }
 
   object TokenParsers extends TokenParsers
@@ -383,7 +415,7 @@ object Linter {
       val lint_name: String,
       val message: String,
       val range: Text.Range,
-      val edit: Option[(String, String)],
+      val edit: Option[Edit],
       command: Parsed_Command
   ) {
     val node_name: Document.Node.Name = command.node_name
@@ -401,7 +433,11 @@ object Linter {
       results.filter(_.command.command.id == id)
   }
 
-  type Reporter = (String, Text.Range, Option[(String, String)]) => Some[Lint_Result]
+  case class Edit(val range: Text.Range, val replacement: String, val msg: Option[String] = None) {
+    val message: String = msg.getOrElse(replacement)
+  }
+
+  type Reporter = (String, Text.Range, Option[Edit]) => Some[Lint_Result]
 
   sealed trait Lint {
 
@@ -443,17 +479,38 @@ object Linter {
       }
   }
 
-  object Use_By extends Proper_Commands_Lint {
+  object Use_By extends Proper_Commands_Lint with TokenParsers {
 
     val name: String = "use_by"
+
+    def pRemoveApply: Parser[String] = (pCommand("apply") ~ pSpace.?) ~> pAny.* ^^ mkString
+
+    def pRemoveApplyAndParen: Parser[String] =
+      (pCommand("apply") ~ pSpace.?) ~> (pParened(pAnyBalanced) | pAnyBalanced) ~ pAny.* ^^ {
+        case x ~ y => s"(${mkString(x)})${mkString(y)}"
+      }
+
+    private def edits(apply_script: List[Parsed_Command]): String =
+      apply_script match {
+        case apply1 :: apply2 :: done :: Nil => {
+          val first = doParseTransform(pRemoveApplyAndParen)(apply1)
+          val second = doParseTransform(pRemoveApply)(apply2)
+          s"by $first $second"
+        }
+        case apply :: done :: Nil => {
+          val no_paren = doParseTransform(pRemoveApplyAndParen)(apply)
+          s"by $no_paren"
+        }
+        case _ => error("Expected two or three commands")
+      }
 
     private def report_lint(apply_script: List[Parsed_Command], report: Lint_Report): Lint_Report =
       report.add_result(
         Lint_Result(
           name,
-          "Use by instead",
+          "Use by instead of apply",
           apply_script.head.range,
-          None,
+          Some(Edit(list_range(apply_script map (_.range)), edits(apply_script))),
           apply_script.head
         )
       )
@@ -630,7 +687,7 @@ object Linter {
             report(
               "Don't use axiomatization",
               Text.Range(xs.head.range.start, xs.last.range.stop),
-              None
+              Some(Edit(list_range(xs.map(_.range)), "", Some("Remove where")))
             )
           case Nil => None
         }
@@ -648,7 +705,11 @@ object Linter {
 
     def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Result] = tokens match {
       case head :: _ if (illegal_commands.contains(head.content)) =>
-        report(message, head.range, Some(tokens.map(_.source).mkString, ""))
+        report(
+          message,
+          head.range,
+          Some(Edit(list_range(tokens.map(_.range)), "", Some("Remove invocation")))
+        )
       case _ => None
     }
   }
