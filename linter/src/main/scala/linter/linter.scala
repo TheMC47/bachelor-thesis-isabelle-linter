@@ -384,6 +384,14 @@ object Linter {
 
     def tokenParser: Parser[DocumentElement] = pApply | pIsarProof | pCatch
 
+    def doParseTransform(p: Parser[String])(command: Parsed_Command): String =
+      parse(p, command.tokens, true) match {
+        case Success(result, next) => result
+        case n: NoSuccess          => error(s"Failed: $n \n ${command.tokens}")
+      }
+
+    def mkString(tokens: List[Elem]): String = tokens.map(_.source).mkString
+
     def parse[T](p: Parser[T], in: List[Elem], keepSpaces: Boolean= true): ParseResult[T] = {
       val processed = if (keepSpaces) in else in.filterNot(_.is_space)
       p(TokenReader(processed))
