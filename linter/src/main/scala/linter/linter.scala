@@ -415,7 +415,7 @@ object Linter {
       val lint_name: String,
       val message: String,
       val range: Text.Range,
-      val edit: Option[(String, String)],
+      val edit: Option[Edit],
       command: Parsed_Command
   ) {
     val node_name: Document.Node.Name = command.node_name
@@ -433,7 +433,11 @@ object Linter {
       results.filter(_.command.command.id == id)
   }
 
-  type Reporter = (String, Text.Range, Option[(String, String)]) => Some[Lint_Result]
+  case class Edit(val range: Text.Range, val replacement: String, val msg: Option[String] = None) {
+    val message: String = msg.getOrElse(replacement)
+  }
+
+  type Reporter = (String, Text.Range, Option[Edit]) => Some[Lint_Result]
 
   sealed trait Lint {
 
