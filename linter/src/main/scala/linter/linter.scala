@@ -684,7 +684,11 @@ object Linter {
 
     def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Result] = tokens match {
       case head :: _ if (illegal_commands.contains(head.content)) =>
-        report(message, head.range, Some(tokens.map(_.source).mkString, ""))
+        report(
+          message,
+          head.range,
+          Some(Edit(list_range(tokens.map(_.range)), "", Some("Remove invocation")))
+        )
       case _ => None
     }
   }
