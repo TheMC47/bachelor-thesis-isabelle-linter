@@ -397,7 +397,7 @@ object Linter {
 
     def mkString(tokens: List[Elem]): String = tokens.map(_.source).mkString
 
-    def parse[T](p: Parser[T], in: List[Elem], keepSpaces: Boolean= true): ParseResult[T] = {
+    def parse[T](p: Parser[T], in: List[Elem], keepSpaces: Boolean = false): ParseResult[T] = {
       val processed = if (keepSpaces) in else in.filterNot(_.is_space)
       p(TokenReader(processed))
     }
