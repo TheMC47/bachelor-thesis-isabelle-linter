@@ -221,6 +221,7 @@ object Linter {
       val message: String,
       val range: Text.Range,
       val edit: Option[Edit],
+      val severity: Severity.Value,
       command: Parsed_Command
   ) {
     val node_name: Document.Node.Name = command.node_name
@@ -244,10 +245,17 @@ object Linter {
 
   type Reporter = (String, Text.Range, Option[Edit]) => Some[Lint_Result]
 
+  object Severity extends Enumeration {
+    type Level = Value
+    val LOW, MEDIUM, HIGH = Value
+  }
+
   sealed trait Lint {
 
     // The name of the lint. snake_case
     val name: String
+    // Severity of the lint
+    val severity: Severity.Level
 
     def lint(commands: List[Parsed_Command], report: Lint_Report): Lint_Report
 
@@ -267,7 +275,7 @@ object Linter {
         .map(command =>
           lint(
             command,
-            (message, range, edit) => Some(Lint_Result(name, message, range, edit, command))
+            (message, range, edit) => Some(Lint_Result(name, message, range, edit, severity, command))
           )
         )
         .flatten

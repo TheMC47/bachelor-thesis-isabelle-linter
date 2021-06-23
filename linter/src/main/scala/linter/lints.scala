@@ -8,6 +8,7 @@ import scala.annotation.tailrec
 object Apply_Isar_Switch extends Proper_Commands_Lint {
 
   val name = "apply_isar_switch"
+  val severity: Severity.Level = Severity.MEDIUM
 
   @tailrec
   def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
@@ -19,6 +20,7 @@ object Apply_Isar_Switch extends Proper_Commands_Lint {
             "Do not switch between apply-style and ISAR proofs.",
             proof.range,
             None,
+            severity,
             proof
           )
         )
@@ -32,6 +34,7 @@ object Apply_Isar_Switch extends Proper_Commands_Lint {
 object Use_By extends Proper_Commands_Lint with TokenParsers {
 
   val name: String = "use_by"
+  val severity: Severity.Level = Severity.LOW
 
   def pRemoveApply: Parser[String] = (pCommand("apply") ~ pSpace.?) ~> pAny.* ^^ mkString
 
@@ -57,6 +60,7 @@ object Use_By extends Proper_Commands_Lint with TokenParsers {
         """Use "by" instead of a short apply-script.""",
         apply_script.head.range,
         Some(Edit(list_range(apply_script map (_.range)), edits(apply_script))),
+        severity,
         apply_script.head
       )
     )
@@ -83,6 +87,7 @@ object Use_By extends Proper_Commands_Lint with TokenParsers {
 
 object Unrestricted_Auto extends Proper_Commands_Lint {
   val name: String = "unrestricted_auto"
+  val severity: Severity.Level = Severity.HIGH
 
   private def is_terminal(command: Parsed_Command): Boolean =
     List("sorry", "oops", "done", "\\<proof>").contains(command.kind)
@@ -110,6 +115,7 @@ object Unrestricted_Auto extends Proper_Commands_Lint {
         "Do not use unrestricted auto as a non-terminal proof method.",
         apply.range,
         None,
+        severity,
         apply
       )
     )
@@ -128,6 +134,7 @@ object Unrestricted_Auto extends Proper_Commands_Lint {
 object Single_Step_Low_Level_Apply extends Proper_Commands_Lint {
 
   val name: String = "low_level_chain"
+  val severity: Severity.Level = Severity.LOW
 
   private def is_low_level_method(method: Method): Boolean = method match {
     case Simple_Method(name, range, modifiers, args) =>
@@ -152,6 +159,7 @@ object Single_Step_Low_Level_Apply extends Proper_Commands_Lint {
             "Compress low-level proof methods into automated search.",
             low_level_commands.head.range,
             None,
+            severity,
             low_level_commands.head
           )
         )
@@ -167,6 +175,7 @@ object Single_Step_Low_Level_Apply extends Proper_Commands_Lint {
 object Use_Isar extends Single_Command_Lint {
 
   val name: String = "use_isar"
+  val severity: Severity.Level = Severity.LOW
 
   def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] = command match {
     case (c @ Parsed_Command("apply")) =>
@@ -178,6 +187,7 @@ object Use_Isar extends Single_Command_Lint {
 object Debug_Command extends Single_Command_Lint {
 
   val name: String = "debug_command"
+  val severity: Severity.Level = Severity.LOW
 
   def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] = {
     report(s"${command.tokens}", command.range, None)
@@ -187,6 +197,7 @@ object Debug_Command extends Single_Command_Lint {
 object Axiomatization_With_Where extends Raw_Token_Stream_Lint {
 
   val name: String = "axiomatization_with_where"
+  val severity: Severity.Level = Severity.HIGH
 
   def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Result] = tokens match {
     case Ranged_Token(Token.Kind.COMMAND, "axiomatization", range) :: next =>
@@ -206,10 +217,12 @@ object Axiomatization_With_Where extends Raw_Token_Stream_Lint {
 abstract class Illegal_Command_Lint(
     message: String,
     lint_name: String,
-    illegal_commands: List[String]
+    illegal_commands: List[String],
+    lint_severity: Severity.Level
 ) extends Raw_Token_Stream_Lint {
 
   val name: String = lint_name
+  val severity: Severity.Level = lint_severity
 
   def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Result] = tokens match {
     case head :: _ if (illegal_commands.contains(head.content)) =>
@@ -226,7 +239,8 @@ object Unfinished_Proof
     extends Illegal_Command_Lint(
       "Consider finishing the proof.",
       "unfinished_proof_command",
-      List("sorry", "oops", "\\<proof>")
+      List("sorry", "oops", "\\<proof>"),
+      Severity.HIGH
     )
 
 object Proof_Finder
@@ -238,7 +252,8 @@ object Proof_Finder
         "solve_direct",
         "try",
         "try0"
-      )
+      ),
+      Severity.HIGH
     )
 
 object Counter_Example_Finder
@@ -249,14 +264,16 @@ object Counter_Example_Finder
         "nitpick",
         "nunchaku",
         "quickcheck"
-      )
+      ),
+      Severity.HIGH
     )
 
 object Bad_Style_Command
     extends Illegal_Command_Lint(
       "Bad style command.",
       "bad_style_command",
-      List("back", "apply_end")
+      List("back", "apply_end"),
+      Severity.MEDIUM
     )
 
 object Diagnostic_Command
@@ -328,12 +345,14 @@ object Diagnostic_Command
         "prop",
         "thm",
         "typ"
-      )
+      ),
+      Severity.LOW
     )
 
 object Short_Name extends Parser_Lint {
 
   val name: String = "name_too_short"
+  val severity: Severity.Level = Severity.LOW
 
   override def parser(report: Reporter): Parser[Some[Lint_Result]] =
     pCommand("fun", "definition") ~> elem("ident", _.content.size < 2) ^^ (token =>
@@ -344,6 +363,7 @@ object Short_Name extends Parser_Lint {
 object Unnamed_Lemma_Simplifier_Attributes extends Parser_Lint {
 
   val name: String = "simplifier_on_unnamed_lemma"
+  val severity: Severity.Level = Severity.HIGH
 
   override def parser(report: Reporter): Parser[Some[Lint_Result]] =
     pCommand("lemma") ~> pSqBracketed(pAttributes) >> {
@@ -358,6 +378,7 @@ object Unnamed_Lemma_Simplifier_Attributes extends Parser_Lint {
 object Lemma_Transforming_Attributes extends Parser_Lint {
 
   val name: String = "lemma_transforming_attributes"
+  val severity: Severity.Level = Severity.MEDIUM
 
   override def parser(report: Reporter): Parser[Some[Lint_Result]] =
     (pCommand("lemma") ~ pIdent.?) ~> pSqBracketed(pAttributes) >> {
@@ -372,6 +393,7 @@ object Lemma_Transforming_Attributes extends Parser_Lint {
 object Implicit_Rule extends Structure_Lint {
 
   val name: String = "implicit_rule"
+  val severity: Severity.Level = Severity.MEDIUM
 
   override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
     case Simple_Method(Ranged_Token(_, "rule", _), range, _, Nil) =>
@@ -385,6 +407,7 @@ object Implicit_Rule extends Structure_Lint {
 object Simple_Isar_Method extends Structure_Lint {
 
   val name: String = "complex_isar_proof"
+  val severity: Severity.Level = Severity.MEDIUM
 
   def is_complex(method: Method): Boolean = method match {
     case Simple_Method(Ranged_Token(_, name, _), _, _, _) => name == "auto"
@@ -400,6 +423,7 @@ object Simple_Isar_Method extends Structure_Lint {
 
 object Force_Failure extends Structure_Lint {
   val name: String = "force_failure"
+  val severity: Severity.Level = Severity.LOW
 
   override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
     case Simple_Method(Ranged_Token(_, "simp", _), range, modifiers, args) =>
@@ -410,6 +434,7 @@ object Force_Failure extends Structure_Lint {
 
 object Apply_Auto_Struct extends Structure_Lint {
   val name: String = "auto_structure_composition"
+  val severity: Severity.Level = Severity.LOW
 
   private def has_auto(method: Method): Boolean = method match {
     case Simple_Method(name, range, modifiers, args) => name.source == "auto"
@@ -430,6 +455,7 @@ object Apply_Auto_Struct extends Structure_Lint {
 object Print_Structure extends Structure_Lint {
 
   val name: String = "print_structure"
+  val severity: Severity.Level = Severity.LOW
 
   override def lint_document_element(
       elem: DocumentElement,
