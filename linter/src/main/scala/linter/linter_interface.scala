@@ -10,7 +10,7 @@ class Linter_Interface {
     lazy val new_cache =
       lint_cache + (snapshot.node_name -> (snapshot.version, Linter.lint(
         snapshot,
-        Linter.all_lints
+        Lints.all_lints
       )))
     lint_cache get snapshot.node_name match {
       case None               => lint_cache = new_cache
