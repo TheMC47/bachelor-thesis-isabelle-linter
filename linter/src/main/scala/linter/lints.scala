@@ -35,20 +35,16 @@ object Use_By extends Proper_Commands_Lint with TokenParsers {
 
   def pRemoveApply: Parser[String] = (pCommand("apply") ~ pSpace.?) ~> pAny.* ^^ mkString
 
-  def pRemoveApplyAndParen: Parser[String] =
-    (pCommand("apply") ~ pSpace.?) ~> (pParened(pAnyBalanced) | pAnyBalanced) ~ pAny.* ^^ {
-      case x ~ y => s"(${mkString(x)})${mkString(y)}"
-    }
 
   private def edits(apply_script: List[Parsed_Command]): String =
     apply_script match {
       case apply1 :: apply2 :: done :: Nil => {
-        val first = doParseTransform(pRemoveApplyAndParen)(apply1)
+        val first = doParseTransform(pRemoveApply)(apply1)
         val second = doParseTransform(pRemoveApply)(apply2)
         s"by $first $second"
       }
       case apply :: done :: Nil => {
-        val no_paren = doParseTransform(pRemoveApplyAndParen)(apply)
+        val no_paren = doParseTransform(pRemoveApply)(apply)
         s"by $no_paren"
       }
       case _ => error("Expected two or three commands")
