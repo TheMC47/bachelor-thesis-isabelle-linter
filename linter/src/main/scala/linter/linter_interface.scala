@@ -28,17 +28,17 @@ class Linter_Interface {
   def lint_ranges(
       snapshot: Document.Snapshot,
       line_range: Text.Range = Text.Range.full
-  ): List[Text.Range] =
+  ): List[Text.Info[Linter.Severity.Level]] =
     lint_results(snapshot)
-      .map(_.range)
-      .filter(lint_range => !line_range.apart(lint_range))
-      .map(_.restrict(line_range))
+      .filter(lint_result => !line_range.apart(lint_result.range))
+      .map(lint_result => Text.Info(lint_result.range.restrict(line_range), lint_result.severity))
+      .sortBy(_.info.id)
 
   def command_lints(
       snapshot: Document.Snapshot,
       command_id: Document_ID.Command
   ): List[Linter.Lint_Result] =
-    lint_results(snapshot).filter(_.command.command.id == command_id)
+    lint_results(snapshot).filter(_.command.command.id == command_id).sortBy(_.severity.id)
 
 }
 
