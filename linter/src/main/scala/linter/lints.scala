@@ -16,7 +16,7 @@ object Apply_Isar_Switch extends Proper_Commands_Lint {
         val new_report = report.add_result(
           Lint_Result(
             name,
-            "Do not switch between apply-style and ISAR proofs",
+            "Do not switch between apply-style and ISAR proofs.",
             proof.range,
             None,
             proof
@@ -54,7 +54,7 @@ object Use_By extends Proper_Commands_Lint with TokenParsers {
     report.add_result(
       Lint_Result(
         name,
-        "Use by instead of apply",
+        """Use "by" instead of a short apply-script.""",
         apply_script.head.range,
         Some(Edit(list_range(apply_script map (_.range)), edits(apply_script))),
         apply_script.head
@@ -107,7 +107,7 @@ object Unrestricted_Auto extends Proper_Commands_Lint {
     report.add_result(
       Lint_Result(
         name,
-        "Do not use unrestricted auto as a non-terminal proof method",
+        "Do not use unrestricted auto as a non-terminal proof method.",
         apply.range,
         None,
         apply
@@ -149,7 +149,7 @@ object Single_Step_Low_Level_Apply extends Proper_Commands_Lint {
         report.add_result(
           Lint_Result(
             name,
-            "Consider compressing low level proof methods into automated search",
+            "Compress low-level proof methods into automated search.",
             low_level_commands.head.range,
             None,
             low_level_commands.head
@@ -170,7 +170,7 @@ object Use_Isar extends Single_Command_Lint {
 
   def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] = command match {
     case (c @ Parsed_Command("apply")) =>
-      report("Use Isar instead of apply-scripts", c.range, None)
+      report("Use Isar instead of apply-scripts.", c.range, None)
     case _ => None
   }
 }
@@ -193,7 +193,7 @@ object Axiomatization_With_Where extends Raw_Token_Stream_Lint {
       next.dropWhile(_.source != "where") match {
         case xs @ (_ :: _) =>
           report(
-            "Don't use axiomatization",
+            """Do not use axiomatization with a where clause.""",
             Text.Range(xs.head.range.start, xs.last.range.stop),
             Some(Edit(list_range(xs.map(_.range)), "", Some("Remove where")))
           )
@@ -224,14 +224,14 @@ abstract class Illegal_Command_Lint(
 
 object Unfinished_Proof
     extends Illegal_Command_Lint(
-      "Unfinished proof",
+      "Consider finishing the proof.",
       "unfinished_proof_command",
       List("sorry", "oops", "\\<proof>")
     )
 
 object Proof_Finder
     extends Illegal_Command_Lint(
-      "Proof finder",
+      "Remove proof finder command.",
       "proof_finder_command",
       List(
         "sledgehammer",
@@ -243,7 +243,7 @@ object Proof_Finder
 
 object Counter_Example_Finder
     extends Illegal_Command_Lint(
-      "Counter example finder",
+      "Remove counter-example finder command.",
       "counter_example_finder_command",
       List(
         "nitpick",
@@ -254,14 +254,14 @@ object Counter_Example_Finder
 
 object Bad_Style_Command
     extends Illegal_Command_Lint(
-      "Bad style command",
+      "Bad style command.",
       "bad_style_command",
       List("back", "apply_end")
     )
 
 object Diagnostic_Command
     extends Illegal_Command_Lint(
-      "Interactive diagnostic command",
+      "Remove interactive diagnostic command",
       "diagnostic_command",
       List(
         "ML_val",
@@ -337,7 +337,7 @@ object Short_Name extends Parser_Lint {
 
   override def parser(report: Reporter): Parser[Some[Lint_Result]] =
     pCommand("fun", "definition") ~> elem("ident", _.content.size < 2) ^^ (token =>
-      report(s"""Name "${token.content}" too short""", token.range, None)
+      report(s"""Name "${token.content}" is too short.""", token.range, None)
     )
 }
 
@@ -350,7 +350,7 @@ object Unnamed_Lemma_Simplifier_Attributes extends Parser_Lint {
       _.find(List("simp", "cong") contains _.content) match {
         case None => failure("no match")
         case Some(token) =>
-          success(report("Don't use simplifier attributes on unnamed lemmas", token.range, None))
+          success(report("Do not use simplifier attributes on unnamed lemmas.", token.range, None))
       }
     }
 }
@@ -364,7 +364,7 @@ object Lemma_Transforming_Attributes extends Parser_Lint {
       _.find(List("simplified", "rule_format") contains _.content) match {
         case None => failure("no match")
         case Some(token) =>
-          success(report("Don't use transforming attributes on lemmas", token.range, None))
+          success(report("Do not use transforming attributes on lemmas.", token.range, None))
       }
     }
 }
@@ -375,7 +375,7 @@ object Implicit_Rule extends Structure_Lint {
 
   override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
     case Simple_Method(Ranged_Token(_, "rule", _), range, _, Nil) =>
-      report("Do not use implicit rule", range, None)
+      report("Do not use implicit rule.", range, None)
     case Combined_Method(left, _, right, _, _) =>
       lint_apply(left, report).orElse(lint_apply(right, report))
     case _ => None
@@ -395,7 +395,7 @@ object Simple_Isar_Method extends Structure_Lint {
     for {
       s_method <- method
       if is_complex(method.get)
-    } yield report("Keep initial proof methods simple", s_method.range, None).get
+    } yield report("Keep initial proof methods simple.", s_method.range, None).get
 }
 
 object Force_Failure extends Structure_Lint {
@@ -403,7 +403,7 @@ object Force_Failure extends Structure_Lint {
 
   override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
     case Simple_Method(Ranged_Token(_, "simp", _), range, modifiers, args) =>
-      report("Consider forciing failure", range, None)
+      report("Consider forciing failure.", range, None)
     case _ => None
   }
 }
@@ -457,7 +457,8 @@ object Lints {
     Unnamed_Lemma_Simplifier_Attributes,
     Lemma_Transforming_Attributes,
     Implicit_Rule,
-    Simple_Isar_Method
+    Simple_Isar_Method,
+    Unfinished_Proof
     // Debugging lints
     // Print_Structure,
     // Debug_Command
