@@ -1,23 +1,29 @@
 #+TITLE: Lints
 #+DESCRIPTION: The list of different lints used
 
-| Name                                                      | level  | When to use (categories?) | Impact (of the bad pattern, level?)      | Implemented? |
-|-----------------------------------------------------------+--------+---------------------------+------------------------------------------+--------------|
-| unfinished proofs                                         | high   | all, non-interactive      | incomplete proofs                        | Yes          |
-| bad-style (back, apply_end)                               | medium | all                       | maintenance, readability                 | Yes          |
-| global attribute on unnamed lemma                         | high   | all                       | maintenance (would break)                | Yes          |
-| axiomatization with where                                 |        | user-code                 | inconsistencies in the logic             | Yes          |
-| unristricted auto                                         | ??     | all                       | maintenance (would break, unpredictable) | No           |
-| switch between apply and proof                            | ??     | all                       | readability, maintenance                 | No           |
-| simple initial ISAR proof methods                         | medium | all                       | readability, maintenance                 | Yes          |
-| implicit rule                                             | medium | all                       | readability, maintenance                 | Yes          |
-| one-letter names                                          |        | user-code                 | style, readability                       | Yes*         |
-| interactive diagnostic commands                           |        | all, non-interactive      | maintenance                              | Yes          |
-| find proof commands                                       |        | all, non-interactive      | maintenance                              | Yes          |
-| counter-example commands                                  |        | all, non-interactive      | maintenance                              | Yes          |
-| apply scripts instead of ISAR                             |        | all                       | style, readability                       | No           |
-| compress single-step low-level proofs                     |        | all                       | style, readability                       | No           |
-| context instead of global attribute changes               |        | all                       | readability                              | No           |
-| consider forcing failure                                  | low    | all                       | stryle, maintenance                      | No           |
-| avoid  ~apply (auto ..;)~                                 |        | all                       | style, maintenance                       | No           |
-| Replace ~apply(...) apply(...) done~ wit ~by (...) (...)~ |        | all                       | style, readability                       | No           |
+
+
+| Name                                                       | level  | When to use (categories?) | Impact (of the bad pattern, level?)      | Implemented? |
+|------------------------------------------------------------+--------+---------------------------+------------------------------------------+--------------|
+| unfinished proofs                                          | high   | non-interactive           | incomplete proofs                        | Yes          |
+| global attribute on unnamed lemma                          | high   | all                       | maintenance (would break)                | Yes          |
+| axiomatization with where                                  | high   | user-code                 | inconsistencies in the logic             | Yes          |
+| unristricted auto                                          | high   | all                       | maintenance (would break, unpredictable) | Yes          |
+| find proof commands                                        | high   | all, non-interactive      | maintenance                              | Yes          |
+| counter-example commands                                   | high   | all, non-interactive      | maintenance                              | Yes          |
+| switch between apply and proof                             | medium | all                       | readability, maintenance                 | Yes          |
+| bad-style (back, apply_end)                                | medium | all                       | maintenance, readability                 | Yes          |
+| simple initial ISAR proof methods                          | medium | all                       | readability, maintenance                 | Yes          |
+| implicit rule                                              | medium | all                       | readability, maintenance                 | Yes          |
+| apply scripts instead of ISAR                              | medium | all                       | style, readability                       | Yes          |
+| context instead of global attribute changes                | medium | all, user-code            | readability                              | No           |
+| avoid  ~apply (auto ..;)~                                  | medium | all                       | style, maintenance                       | Yes          |
+| one-letter names                                           | low    | user-code                 | style, readability                       | Yes*         |
+| interactive diagnostic commands                            | low    | non-interactive           | maintenance                              | Yes          |
+| compress single-step low-level proofs                      | low    | all                       | style, readability                       | Yes          |
+| consider forcing failure                                   | low    | all                       | stryle, maintenance                      | Yes          |
+| Replace ~apply(...) apply(...) done~ with ~by (...) (...)~ | low    | all                       | style                                    | Yes          |
+| complex methods                                            |        | all                       | maintenance, readability                 | No           |
+| do not use isabelle-generated names                        |        | all                       | readability, maintenance                 | No           |
+
+- Categories: non-interactive, user-code, all, default?
