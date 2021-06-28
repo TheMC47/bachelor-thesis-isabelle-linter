@@ -17,7 +17,7 @@ object Linter {
 
   def lint(
       snapshot: Document.Snapshot,
-      lints: List[Lint]
+      configuration: Linter_Configuration
   ): Lint_Report = {
 
     val commands = snapshot.node.commands.iterator.toList
@@ -30,7 +30,7 @@ object Linter {
       }
     )
 
-    lints.foldLeft(Lint_Report.empty)((report, lint) => lint.lint(parsed_commands, report))
+    configuration.get_lints.foldLeft(Lint_Report.empty)((report, lint) => lint.lint(parsed_commands, report))
   }
 
   case class Ranged_Token(val token: Token, offset: Text.Offset) {
