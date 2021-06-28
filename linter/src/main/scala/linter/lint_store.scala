@@ -16,7 +16,7 @@ object Lint_Store {
     Apply_Isar_Switch,
     Use_By,
     Unrestricted_Auto,
-    Single_Step_Low_Level_Apply,
+    Low_Level_Apply_Chain,
     Use_Isar,
     Debug_Command,
     Axiomatization_With_Where,
@@ -26,12 +26,12 @@ object Lint_Store {
     Bad_Style_Command,
     Diagnostic_Command,
     Short_Name,
-    Unnamed_Lemma_Simplifier_Attributes,
-    Lemma_Transforming_Attributes,
+    Global_Attribute_On_Unnamed_Lemma,
+    Lemma_Transforming_Attribute,
     Implicit_Rule,
-    Simple_Isar_Method,
+    Complex_Isar_Initial_Method,
     Force_Failure,
-    Apply_Auto_Struct,
+    Auto_Structural_Composition,
     Print_Structure
   )
 
@@ -48,8 +48,8 @@ object Lint_Store {
         Apply_Isar_Switch.name,
         Use_By.name,
         Use_Isar.name,
-        Single_Step_Low_Level_Apply.name,
-        Simple_Isar_Method.name
+        Low_Level_Apply_Chain.name,
+        Complex_Isar_Initial_Method.name
       )
     )
 
@@ -70,20 +70,20 @@ object Lint_Store {
         Use_By.name,
         Unrestricted_Auto.name,
         Bad_Style_Command.name,
-        Unnamed_Lemma_Simplifier_Attributes.name,
+        Global_Attribute_On_Unnamed_Lemma.name,
         Implicit_Rule.name,
-        Simple_Isar_Method.name
+        Complex_Isar_Initial_Method.name
       )
     )
 
     val pedantic = Bundle(
       "pedantic",
       Set(
-        Single_Step_Low_Level_Apply.name,
+        Low_Level_Apply_Chain.name,
         Use_Isar.name,
         Short_Name.name,
         Force_Failure.name,
-        Apply_Auto_Struct.name
+        Auto_Structural_Composition.name
       )
     )
 
@@ -93,14 +93,14 @@ object Lint_Store {
         Apply_Isar_Switch.name,
         Use_By.name,
         Unrestricted_Auto.name,
-        Single_Step_Low_Level_Apply.name,
+        Low_Level_Apply_Chain.name,
         Axiomatization_With_Where.name,
         Bad_Style_Command.name,
         Short_Name.name,
-        Unnamed_Lemma_Simplifier_Attributes.name,
-        Lemma_Transforming_Attributes.name,
+        Global_Attribute_On_Unnamed_Lemma.name,
+        Lemma_Transforming_Attribute.name,
         Implicit_Rule.name,
-        Simple_Isar_Method.name,
+        Complex_Isar_Initial_Method.name
       )
     )
   }

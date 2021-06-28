@@ -134,9 +134,9 @@ object Unrestricted_Auto extends Proper_Commands_Lint {
     }
 }
 
-object Single_Step_Low_Level_Apply extends Proper_Commands_Lint {
+object Low_Level_Apply_Chain extends Proper_Commands_Lint {
 
-  val name: String = "low_level_chain"
+  val name: String = "low_level_apply_chain"
   val severity: Severity.Level = Severity.LOW
   val category: Category.Name = Category.style
 
@@ -247,7 +247,7 @@ abstract class Illegal_Command_Lint(
 object Unfinished_Proof
     extends Illegal_Command_Lint(
       "Consider finishing the proof.",
-      "unfinished_proof_command",
+      "unfinished_proof",
       List("sorry", "oops", "\\<proof>"),
       Severity.HIGH,
       Category.maintenance
@@ -256,7 +256,7 @@ object Unfinished_Proof
 object Proof_Finder
     extends Illegal_Command_Lint(
       "Remove proof finder command.",
-      "proof_finder_command",
+      "proof_finder",
       List(
         "sledgehammer",
         "solve_direct",
@@ -270,7 +270,7 @@ object Proof_Finder
 object Counter_Example_Finder
     extends Illegal_Command_Lint(
       "Remove counter-example finder command.",
-      "counter_example_finder_command",
+      "counter_example_finder",
       List(
         "nitpick",
         "nunchaku",
@@ -365,7 +365,7 @@ object Diagnostic_Command
 
 object Short_Name extends Parser_Lint {
 
-  val name: String = "name_too_short"
+  val name: String = "short_name"
   val severity: Severity.Level = Severity.LOW
   val category: Category.Name = Category.style
 
@@ -375,9 +375,9 @@ object Short_Name extends Parser_Lint {
     )
 }
 
-object Unnamed_Lemma_Simplifier_Attributes extends Parser_Lint {
+object Global_Attribute_On_Unnamed_Lemma extends Parser_Lint {
 
-  val name: String = "simplifier_on_unnamed_lemma"
+  val name: String = "global_attribute_on_unnamed_lemma"
   val severity: Severity.Level = Severity.HIGH
   val category: Category.Name = Category.maintenance
 
@@ -391,9 +391,9 @@ object Unnamed_Lemma_Simplifier_Attributes extends Parser_Lint {
     }
 }
 
-object Lemma_Transforming_Attributes extends Parser_Lint {
+object Lemma_Transforming_Attribute extends Parser_Lint {
 
-  val name: String = "lemma_transforming_attributes"
+  val name: String = "lemma_transforming_attribute"
   val severity: Severity.Level = Severity.MEDIUM
   val category: Category.Name = Category.maintenance
 
@@ -422,9 +422,9 @@ object Implicit_Rule extends Structure_Lint {
   }
 }
 
-object Simple_Isar_Method extends Structure_Lint {
+object Complex_Isar_Initial_Method extends Structure_Lint {
 
-  val name: String = "complex_isar_proof"
+  val name: String = "complex_isar_initial_method"
   val severity: Severity.Level = Severity.MEDIUM
   val category: Category.Name = Category.maintenance
 
@@ -452,8 +452,8 @@ object Force_Failure extends Structure_Lint {
   }
 }
 
-object Apply_Auto_Struct extends Structure_Lint {
-  val name: String = "auto_structure_composition"
+object Auto_Structural_Composition extends Structure_Lint {
+  val name: String = "auto_structural_composition"
   val severity: Severity.Level = Severity.LOW
   val category: Category.Name = Category.maintenance
 
