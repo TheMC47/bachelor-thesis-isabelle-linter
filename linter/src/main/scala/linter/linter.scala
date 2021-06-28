@@ -250,12 +250,19 @@ object Linter {
     val LOW, MEDIUM, HIGH = Value
   }
 
+  object Category extends Enumeration {
+    type Name = Value
+    val readability, maintenance, style = Value
+  }
+
   sealed trait Lint {
 
     // The name of the lint. snake_case
     val name: String
     // Severity of the lint
     val severity: Severity.Level
+    // Category
+    val category: Category.Name
 
     def lint(commands: List[Parsed_Command], report: Lint_Report): Lint_Report
 
@@ -275,7 +282,8 @@ object Linter {
         .map(command =>
           lint(
             command,
-            (message, range, edit) => Some(Lint_Result(name, message, range, edit, severity, command))
+            (message, range, edit) =>
+              Some(Lint_Result(name, message, range, edit, severity, command))
           )
         )
         .flatten
