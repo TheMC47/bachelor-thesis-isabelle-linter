@@ -485,30 +485,3 @@ object Print_Structure extends Structure_Lint {
   ): Option[Lint_Result] =
     report(s"Parsed: $elem", elem.range, None)
 }
-
-object Lints {
-
-  val all_lints: List[Lint] = List(
-    Apply_Isar_Switch,
-    Use_By,
-    Unrestricted_Auto,
-    Single_Step_Low_Level_Apply,
-    // Force_Failure,
-    // Use_Isar,
-    Apply_Auto_Struct,
-    Axiomatization_With_Where,
-    Proof_Finder,
-    Counter_Example_Finder,
-    Bad_Style_Command,
-    Diagnostic_Command,
-    Short_Name,
-    Unnamed_Lemma_Simplifier_Attributes,
-    Lemma_Transforming_Attributes,
-    Implicit_Rule,
-    Simple_Isar_Method,
-    Unfinished_Proof
-    // Debugging lints
-    // Print_Structure,
-    // Debug_Command
-  )
-}
