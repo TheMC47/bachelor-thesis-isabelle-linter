@@ -5,12 +5,13 @@ import isabelle._
 class Linter_Interface {
 
   var lint_cache: Map[Document.Node.Name, (Document.Version, Linter.Lint_Report)] = Map.empty
+  var configuration: Linter_Configuration = Linter_Configuration.empty
 
   private def update_cache(snapshot: Document.Snapshot): Unit = {
     lazy val new_cache =
       lint_cache + (snapshot.node_name -> (snapshot.version, Linter.lint(
         snapshot,
-        Lints.all_lints
+        configuration
       )))
     lint_cache get snapshot.node_name match {
       case None               => lint_cache = new_cache
@@ -54,5 +55,14 @@ class Linter_Variable {
         current_linter = Some(new Linter_Interface)
       }
     } else current_linter = no_linter
+    for (linter <- current_linter) {
+      val bundles = space_explode(',', options.string("enabled_bundles"))
+      val enabled_lints = space_explode(',', options.string("enabled_lints"))
+      val disabled_lins = space_explode(',', options.string("disabled_lints"))
+      linter.configuration = Linter_Configuration.empty
+        .add_bundles(bundles)
+        .enable_lints(enabled_lints)
+        .disable_lints(disabled_lins)
+    }
   }
 }

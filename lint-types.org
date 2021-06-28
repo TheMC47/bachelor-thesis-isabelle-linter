@@ -3,27 +3,39 @@
 
 
 
-| Name                                                       | level  | When to use (categories?) | Impact (of the bad pattern, level?)      | Implemented? |
-|------------------------------------------------------------+--------+---------------------------+------------------------------------------+--------------|
-| unfinished proofs                                          | high   | non-interactive           | incomplete proofs                        | Yes          |
-| global attribute on unnamed lemma                          | high   | all                       | maintenance (would break)                | Yes          |
-| axiomatization with where                                  | high   | user-code                 | inconsistencies in the logic             | Yes          |
-| unristricted auto                                          | high   | all                       | maintenance (would break, unpredictable) | Yes          |
-| find proof commands                                        | high   | all, non-interactive      | maintenance                              | Yes          |
-| counter-example commands                                   | high   | all, non-interactive      | maintenance                              | Yes          |
-| switch between apply and proof                             | medium | all                       | readability, maintenance                 | Yes          |
-| bad-style (back, apply_end)                                | medium | all                       | maintenance, readability                 | Yes          |
-| simple initial ISAR proof methods                          | medium | all                       | readability, maintenance                 | Yes          |
-| implicit rule                                              | medium | all                       | readability, maintenance                 | Yes          |
-| apply scripts instead of ISAR                              | medium | all                       | style, readability                       | Yes          |
-| context instead of global attribute changes                | medium | all, user-code            | readability                              | No           |
-| avoid  ~apply (auto ..;)~                                  | medium | all                       | style, maintenance                       | Yes          |
-| one-letter names                                           | low    | user-code                 | style, readability                       | Yes*         |
-| interactive diagnostic commands                            | low    | non-interactive           | maintenance                              | Yes          |
-| compress single-step low-level proofs                      | low    | all                       | style, readability                       | Yes          |
-| consider forcing failure                                   | low    | all                       | stryle, maintenance                      | Yes          |
-| Replace ~apply(...) apply(...) done~ with ~by (...) (...)~ | low    | all                       | style                                    | Yes          |
-| complex methods                                            |        | all                       | maintenance, readability                 | No           |
-| do not use isabelle-generated names                        |        | all                       | readability, maintenance                 | No           |
+| Name                                        | level  | When to use (categories?) | Impact (of the bad pattern, level?) | Implemented?         |
+|---------------------------------------------+--------+---------------------------+-------------------------------------+----------------------|
+| unfinished proof                            | high   | non-interactive           | maintenance                         | Yes                  |
+| global_attribute_on_unnamed_lemma           | high   | all                       | maintenance                         | Yes                  |
+| axiomatization_with_where                   | high   | user-code                 | maintenance                         | Yes                  |
+| unrestricted_auto                           | high   | all                       | maintenance                         | Yes                  |
+| proof_finder                                | high   | all, non-interactive      | maintenance                         | Yes                  |
+| counter-example commands                    | high   | all, non-interactive      | maintenance                         | Yes                  |
+| apply_isar_switch                           | medium | all                       | readability                         | Yes                  |
+| bad_style_command                           | medium | all                       | maintenance                         | Yes                  |
+| complex_isar_initial_method                 | medium | all                       | maintenance                         | Yes                  |
+| implicit_rule                               | medium | all                       | maintenance                         | Yes                  |
+| use_isar                                    | medium | all                       | style                               | Yes                  |
+| context instead of global attribute changes | medium | all, user-code            | readability                         | No                   |
+| auto_structural_composition                 | medium | all                       | maintenance                         | Yes                  |
+| short_name                                  | low    | user-code                 | style                               | Yes*                 |
+| diagnostic_command                          | low    | non-interactive           | maintenance                         | Yes                  |
+| low_level_apply_chain                       | low    | all                       | style                               | Yes                  |
+|                                     |                      |
+| force_failure                               | low    | all                       | maintenance                         | Yes                  |
+| use_by                                      | low    | all                       | style                               | Yes                  |
+| complex methods                             |        | all                       | readability                         | No                   |
+| do not use isabelle-generated names         |        | all                       | maintenance                         | No (won't implement) |
 
-- Categories: non-interactive, user-code, all, default?
+- Bundles
+  + isar: apply_isar_switch, use_by, use_isar, low_level_apply_chain,
+    complex_isar_initial_method
+  + no_diagnosis: unfinished_proof, proof_finder, counter_example_finder,
+    diagnostic_command
+  + foundational: apply_isar_switch, use_by, unrestricted_auto,
+    bad_style_command, global_attribute_on_unnamed_lemma
+  + pedanatic: low_level_apply_chain, use_isar, short_name, force_failure, auto_structural_composition
+  + default: apply_isar_switch, use_by, unrestricted_auto,
+    low_level_apply_chain, axiomatization_with_where, bad_style_command,
+    short_name, global_attribute_on_unnamed_lemma, lemma_transforming_attribute,
+    implicit_rule, complex_isar_initial_method

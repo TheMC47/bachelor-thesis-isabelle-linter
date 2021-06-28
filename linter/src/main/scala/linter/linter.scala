@@ -17,7 +17,7 @@ object Linter {
 
   def lint(
       snapshot: Document.Snapshot,
-      lints: List[Lint]
+      configuration: Linter_Configuration
   ): Lint_Report = {
 
     val commands = snapshot.node.commands.iterator.toList
@@ -30,7 +30,7 @@ object Linter {
       }
     )
 
-    lints.foldLeft(Lint_Report.empty)((report, lint) => lint.lint(parsed_commands, report))
+    configuration.get_lints.foldLeft(Lint_Report.empty)((report, lint) => lint.lint(parsed_commands, report))
   }
 
   case class Ranged_Token(val token: Token, offset: Text.Offset) {
@@ -250,12 +250,19 @@ object Linter {
     val LOW, MEDIUM, HIGH = Value
   }
 
+  object Category extends Enumeration {
+    type Name = Value
+    val readability, maintenance, style = Value
+  }
+
   sealed trait Lint {
 
     // The name of the lint. snake_case
     val name: String
     // Severity of the lint
     val severity: Severity.Level
+    // Category
+    val category: Category.Name
 
     def lint(commands: List[Parsed_Command], report: Lint_Report): Lint_Report
 
@@ -275,7 +282,8 @@ object Linter {
         .map(command =>
           lint(
             command,
-            (message, range, edit) => Some(Lint_Result(name, message, range, edit, severity, command))
+            (message, range, edit) =>
+              Some(Lint_Result(name, message, range, edit, severity, command))
           )
         )
         .flatten
