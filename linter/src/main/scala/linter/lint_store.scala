@@ -114,7 +114,7 @@ object Lint_Store {
     bundle_store.get(name)
 
   private val all_bundles =
-    List(Bundle.always, Bundle.isar, Bundle.no_diagnosis, Bundle.foundational, Bundle.interactive)
+    List(Bundle.isar, Bundle.no_diagnosis, Bundle.foundational, Bundle.pedantic, Bundle.default)
 
   for (bundle <- all_bundles) bundle_register(bundle)
 }
