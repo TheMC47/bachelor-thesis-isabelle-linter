@@ -32,7 +32,8 @@ object Lint_Store {
     Complex_Isar_Initial_Method,
     Force_Failure,
     Auto_Structural_Composition,
-    Print_Structure
+    Print_Structure,
+    Complex_Method
   )
 
   for (lint <- all_lints) register_lint(lint)

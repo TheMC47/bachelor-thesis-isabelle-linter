@@ -40,7 +40,6 @@ object Use_By extends Proper_Commands_Lint with TokenParsers {
 
   def pRemoveApply: Parser[String] = (pCommand("apply") ~ pSpace.?) ~> pAny.* ^^ mkString
 
-
   private def edits(apply_script: List[Parsed_Command]): String =
     apply_script match {
       case apply1 :: apply2 :: done :: Nil => {
@@ -74,12 +73,12 @@ object Use_By extends Proper_Commands_Lint with TokenParsers {
           :: (apply1 @ Parsed_Command("apply"))
           :: (apply2 @ Parsed_Command("apply"))
           :: (done @ Parsed_Command("done"))
-          :: next =>
+          :: next if (!(Complex_Method.is_complex(apply1) || Complex_Method.is_complex(apply2))) =>
         lint_proper(next, report_lint(apply1 :: apply2 :: done :: Nil, report))
       case Parsed_Command("lemma")
           :: (apply @ Parsed_Command("apply"))
           :: (done @ Parsed_Command("done"))
-          :: next =>
+          :: next if (!Complex_Method.is_complex(apply)) =>
         lint_proper(next, report_lint(apply :: done :: Nil, report))
       case _ :: next => lint_proper(next, report)
       case Nil       => report
@@ -428,15 +427,15 @@ object Complex_Isar_Initial_Method extends Structure_Lint {
   val severity: Severity.Level = Severity.MEDIUM
   val category: Category.Name = Category.maintenance
 
-  def is_complex(method: Method): Boolean = method match {
+  def has_auto(method: Method): Boolean = method match {
     case Simple_Method(Ranged_Token(_, name, _), _, _, _) => name == "auto"
-    case Combined_Method(left, _, right, _, _)            => is_complex(left) || is_complex(right)
+    case Combined_Method(left, _, right, _, _)            => has_auto(left) || has_auto(right)
   }
 
   override def lint_isar_proof(method: Option[Method], report: Reporter): Option[Lint_Result] =
     for {
       s_method <- method
-      if is_complex(method.get)
+      if has_auto(s_method) || Complex_Method.is_complex_method(s_method, allow_modifiers = false)
     } yield report("Keep initial proof methods simple.", s_method.range, None).get
 }
 
@@ -471,6 +470,59 @@ object Auto_Structural_Composition extends Structure_Lint {
     case Combined_Method(left, _, right, range, modifiers) =>
       lint_apply(left, report).orElse(lint_apply(right, report))
   }
+}
+
+object Complex_Method extends Structure_Lint {
+
+  val name: String = "complex_method"
+  val severity: Severity.Level = Severity.MEDIUM
+  val category: Category.Name = Category.readability
+
+  val modifier_length: Int = 1
+  val combinator_threshold: Int = 4
+  val message: String = "Avoid complex methods."
+
+  private def has_modifiers(method: Method): Boolean = method match {
+    case Simple_Method(_, _, modifiers, _) => !modifiers.isEmpty
+    case Combined_Method(left, _, right, _, modifiers) =>
+      !modifiers.isEmpty || has_modifiers(left) || has_modifiers(right)
+  }
+
+  private def has_complex_modifiers(method: Method): Boolean = method match {
+    case Simple_Method(_, _, modifiers, _) => modifiers.length > modifier_length
+    case Combined_Method(left, _, right, _, modifiers) =>
+      modifiers.length > modifier_length || has_modifiers(left) || has_modifiers(right)
+  }
+
+  private def mkList(method: Method): List[Simple_Method] = method match {
+    case s @ Simple_Method(_, _, _, _)         => s :: Nil
+    case Combined_Method(left, _, right, _, _) => mkList(left) ::: mkList(right)
+  }
+
+  private def has_many_combinators(method: Method): Boolean =
+    mkList(method).length >= combinator_threshold
+
+  def is_complex_method(method: Method, allow_modifiers: Boolean = true): Boolean =
+    (if (allow_modifiers) has_complex_modifiers(method) else has_modifiers(method)) ||
+      has_many_combinators(method)
+
+  def is_complex(element: DocumentElement): Boolean = element match {
+    case Apply(method, _)                => is_complex_method(method)
+    case Isar_Proof(Some(method), range) => is_complex_method(method)
+    case _                               => false
+  }
+
+  def is_complex(command: Parsed_Command): Boolean = is_complex(command.parsed)
+
+  override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] =
+    if (is_complex_method(method)) report(message, method.range, None) else None
+
+  override def lint_isar_proof(method: Option[Method], report: Reporter): Option[Lint_Result] =
+    for {
+      s_method <- method
+      if is_complex_method(s_method)
+    } yield report(message, s_method.range, None).get
+
 }
 
 object Print_Structure extends Structure_Lint {
