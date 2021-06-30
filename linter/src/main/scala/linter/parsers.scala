@@ -7,14 +7,15 @@ import isabelle._
 import Linter._
 object TokenParsers extends TokenParsers {
 
-  case class IndexPosition(val ts: List[Ranged_Token], val i: Int) extends input.Position {
-    def column: Int = ts.slice(0, i + 1).map(_.content.size).sum
+  case class IndexPosition(val ts: List[Text.Info[Token]], val i: Int) extends input.Position {
+    def column: Int = ts.slice(0, i + 1).map(_.info.content.size).sum
     def line: Int = 0
-    protected def lineContents: String = (ts map { _.content }).mkString
+    protected def lineContents: String = (ts map { _.info.content }).mkString
   }
 
-  case class TokenReader(in: List[Ranged_Token], from: Int = 0) extends input.Reader[Ranged_Token] {
-    def first: Ranged_Token = in.head
+  case class TokenReader(in: List[Text.Info[Token]], from: Int = 0)
+      extends input.Reader[Text.Info[Token]] {
+    def first: Text.Info[Token] = in.head
     def rest: TokenReader = TokenReader(in.tail, from + 1)
     def pos: input.Position = IndexPosition(in, from)
     def atEnd: Boolean = in.isEmpty
@@ -23,7 +24,7 @@ object TokenParsers extends TokenParsers {
 }
 
 trait TokenParsers extends Parsers {
-  type Elem = Ranged_Token
+  type Elem = Text.Info[Token]
 
   /* Utilities */
 
@@ -52,19 +53,19 @@ trait TokenParsers extends Parsers {
     token.is_keyword ||
     token.kind == Token.Kind.CARTOUCHE
 
-  def is_atom(rtoken: Ranged_Token): Boolean = is_atom(rtoken.token)
+  def is_atom(rtoken: Text.Info[Token]): Boolean = is_atom(rtoken.info)
 
   /* Token kinds */
-  def pCommand(name: String): Parser[Elem] = elem(name, _.is_command(name))
+  def pCommand(name: String): Parser[Elem] = elem(name, _.info.is_command(name))
   def pCommand(names: String*): Parser[Elem] = anyOf(names.map(pCommand(_)))
 
-  def pSpace: Parser[Elem] = elem("space", _.is_space)
+  def pSpace: Parser[Elem] = elem("space", _.info.is_space)
 
-  def pKeyword(name: String): Parser[Elem] = elem(name, _.is_keyword(name))
-  def pIdent: Parser[Elem] = elem("ident", _.is_ident)
-  def pSymIdent: Parser[Elem] = elem("sym_ident", _.is_sym_ident)
-  def pNat: Parser[Elem] = elem("nat", _.is_nat)
-  def pString: Parser[Elem] = elem("string", _.is_string)
+  def pKeyword(name: String): Parser[Elem] = elem(name, _.info.is_keyword(name))
+  def pIdent: Parser[Elem] = elem("ident", _.info.is_ident)
+  def pSymIdent: Parser[Elem] = elem("sym_ident", _.info.is_sym_ident)
+  def pNat: Parser[Elem] = elem("nat", _.info.is_nat)
+  def pString: Parser[Elem] = elem("string", _.info.is_string)
 
   /* Surrounded parsers */
   def pSurrounded[T, U](left: Parser[T], right: Parser[T])(center: Parser[U]): Parser[U] =
@@ -81,8 +82,8 @@ trait TokenParsers extends Parsers {
 
   // Atoms can be too general, so propagate a predicate
   def pAtom(pred: Token => Boolean): Parser[Elem] =
-    elem("atom", (t => is_atom(t) && pred(t.token)))
-  def pName: Parser[Elem] = elem("name", _.is_name)
+    elem("atom", (t => is_atom(t) && pred(t.info)))
+  def pName: Parser[Elem] = elem("name", _.info.is_name)
 
   /* Args */
   def pSingle_Arg(pred: Token => Boolean): Parser[List[Elem]] = pAtom(pred) ^^ { List(_) }
@@ -95,27 +96,34 @@ trait TokenParsers extends Parsers {
   object MethodParsers {
 
     /* Modifiers */
-    def pTry: Parser[Method.Modifier] = pKeyword("?") ^^ { token =>
-      Method.Modifier.Try(token.range)
+    def pTry: Parser[Text.Info[Method.Modifier]] = pKeyword("?") ^^ { case Text.Info(range, _) =>
+      Text.Info(range, Method.Modifier.Try)
     }
-    def pRep1: Parser[Method.Modifier] = pKeyword("+") ^^ { token =>
-      Method.Modifier.Rep1(token.range)
+    def pRep1: Parser[Text.Info[Method.Modifier]] = pKeyword("+") ^^ { case Text.Info(range, _) =>
+      Text.Info(range, Method.Modifier.Rep1)
     }
-    def pRestrict: Parser[Method.Modifier] = pSqBracketed(
-      pNat ^^ (n => Method.Modifier.Restrict(n.content.toInt, n.range))
+    def pRestrict: Parser[Text.Info[Method.Modifier]] = pSqBracketed(
+      pNat ^^ { case Text.Info(range, n) =>
+        Text.Info(range, Method.Modifier.Restrict(n.content.toInt))
+      }
     )
-    def pModifier: Parser[Method.Modifier] = pTry | pRep1 | pRestrict
+    def pModifier: Parser[Text.Info[Method.Modifier]] = pTry | pRep1 | pRestrict
 
     /* Combinators  and combined methods */
-    def pCombinator(sep: String, comb: Method.Combinator): Parser[Method] =
-      chainl2(
+    def pCombinator(sep: String, comb: Method.Combinator): Parser[Text.Info[Method]] =
+      chainl2[Text.Info[Method]](
         pMethodInner,
-        pKeyword(sep) ^^^ { (left: Method, right: Method) => Combined_Method(left, comb, right) }
+        pKeyword(sep) ^^^ { (left, right) =>
+          Text.Info(
+            Text.Range(left.range.start, right.range.stop),
+            Combined_Method(left, comb, right)
+          )
+        }
       )
 
-    def pAlt: Parser[Method] = pCombinator("|", Method.Combinator.Alt)
-    def pSeq: Parser[Method] = pCombinator(",", Method.Combinator.Seq)
-    def pStruct: Parser[Method] = pCombinator(";", Method.Combinator.Struct)
+    def pAlt: Parser[Text.Info[Method]] = pCombinator("|", Method.Combinator.Alt)
+    def pSeq: Parser[Text.Info[Method]] = pCombinator(",", Method.Combinator.Seq)
+    def pStruct: Parser[Text.Info[Method]] = pCombinator(";", Method.Combinator.Struct)
 
     /* Simple Methods */
     def pMethodArg: Parser[List[Elem]] = pArg { token =>
@@ -124,39 +132,70 @@ trait TokenParsers extends Parsers {
         (token.is_keyword && "|;,+".exists(token.is_keyword)))
     }
 
-    def pNameOnly: Parser[Simple_Method] = pName ^^ (name => Simple_Method(name))
-    def pNameArgs: Parser[Simple_Method] = pName ~ pMethodArg.* ^^ { case name ~ args =>
-      Simple_Method(name, args = args.flatten)
+    def pNameOnly: Parser[Text.Info[Method]] =
+      pName ^^ (name => Text.Info(name.range, Simple_Method(name)))
+
+    def pNameArgs: Parser[Text.Info[Method]] = pName ~ pMethodArg.* ^^ { case name ~ args =>
+      Text.Info(
+        list_range(name.range :: args.flatten.map(_.range)),
+        Simple_Method(name, args = args.flatten)
+      )
     }
 
+    def addModifier(
+        method: Text.Info[Method],
+        modifier: Option[Text.Info[Method.Modifier]]
+    ): Text.Info[Method] =
+      modifier match {
+        case None => method
+        case Some(mod @ Text.Info(mod_range, _)) =>
+          method.info match {
+            case Combined_Method(left, combinator, right, modifiers) =>
+              Text.Info(
+                Text.Range(method.range.start, mod_range.stop),
+                Combined_Method(
+                  left,
+                  combinator,
+                  right,
+                  modifiers :+ mod
+                )
+              )
+            case Simple_Method(name, modifiers, args) =>
+              Text.Info(
+                Text.Range(method.range.start, mod_range.stop),
+                Simple_Method(name, modifiers :+ mod, args)
+              )
+          }
+      }
+
     /* Method */
-    def pMethod: Parser[Method] =
+    def pMethod: Parser[Text.Info[Method]] =
       (pNameOnly | pParened(pMethods)) ~ pModifier.? ^^ { case body ~ modifier =>
-        Method.addModifier(body, modifier)
+        addModifier(body, modifier)
       }
 
     // Following the railroad diagram, some methods like `(rule exI; auto)` will not get parsed
     // since `rule exI` is not inside parentheses. pMethod should only be used for parsing first
     // level methods.
-    def pMethodInner: Parser[Method] = (pNameArgs | pParened(pMethods)) ~ pModifier.? ^^ {
-      case body ~ modifier =>
-        Method.addModifier(body, modifier)
-    }
+    def pMethodInner: Parser[Text.Info[Method]] =
+      (pNameArgs | pParened(pMethods)) ~ pModifier.? ^^ { case body ~ modifier =>
+        addModifier(body, modifier)
+      }
 
-    def pMethods: Parser[Method] = pAlt | pStruct | pSeq | pNameArgs | pMethod
+    def pMethods: Parser[Text.Info[Method]] = pAlt | pStruct | pSeq | pNameArgs | pMethod
   }
 
   /* Apply */
-  def pApply: Parser[Apply] = pCommand("apply") ~ MethodParsers.pMethod ^^ {
+  def pApply: Parser[Text.Info[DocumentElement]] = pCommand("apply") ~ MethodParsers.pMethod ^^ {
     case applyToken ~ method =>
-      Apply(method, Text.Range(applyToken.range.start, method.range.stop))
+      Text.Info(Text.Range(applyToken.range.start, method.range.stop), Apply(method))
   }
 
   /* Isar-Proof */
-  def pIsarProof: Parser[Isar_Proof] = pCommand("proof") ~ MethodParsers.pMethod.? ^^ {
+  def pIsarProof: Parser[Text.Info[DocumentElement]] = pCommand("proof") ~ MethodParsers.pMethod.? ^^ {
     case proofToken ~ Some(method) =>
-      Isar_Proof(Some(method), Text.Range(proofToken.range.start, method.range.stop))
-    case proofToken ~ None => Isar_Proof(None, proofToken.range)
+      Text.Info(Text.Range(proofToken.range.start, method.range.stop), Isar_Proof(Some(method)))
+    case proofToken ~ None => Text.Info(proofToken.range, Isar_Proof(None))
   }
 
   /* Attributes */
@@ -166,24 +205,9 @@ trait TokenParsers extends Parsers {
     chainl1[List[List[Elem]]](pAttribute ^^ { List(_) }, pKeyword(",") ^^^ { _ ::: _ })
 
   /* Putting things together.. */
-  def pCatch: Parser[Unparsed] = pAny.* ^^ Unparsed
-
   def pAny: Parser[Elem] = elem("any", _ => true)
 
-  def pNotParen: Parser[Elem] = elem("not_paren", t => !(t.is_keyword("(") || t.is_keyword(")")))
-
-  def pWithParen(p: Parser[List[Elem]]): Parser[List[Elem]] = pOpenParen ~ p ~ pClosedParen ^^ {
-    case r ~ ts ~ l => (r :: ts) :+ l
-  }
-
-  def pAnyBalanced: Parser[List[Elem]] = chainl1(
-    pNotParen.*,
-    pWithParen(pAnyBalanced) ^^ { mid => (l: List[Elem], r: List[Elem]) =>
-      l ::: mid ::: r
-    }
-  )
-
-  def tokenParser: Parser[DocumentElement] = pApply | pIsarProof | pCatch
+  def tokenParser: Parser[Text.Info[DocumentElement]] = pApply | pIsarProof
 
   def doParseTransform(p: Parser[String])(command: Parsed_Command): String =
     parse(p, command.tokens, true) match {
@@ -197,10 +221,10 @@ trait TokenParsers extends Parsers {
       case n: NoSuccess          => None
     }
 
-  def mkString(tokens: List[Elem]): String = tokens.map(_.source).mkString
+  def mkString(tokens: List[Elem]): String = tokens.map(_.info.source).mkString
 
   def parse[T](p: Parser[T], in: List[Elem], keepSpaces: Boolean = false): ParseResult[T] = {
-    val processed = if (keepSpaces) in else in.filterNot(_.is_space)
+    val processed = if (keepSpaces) in else in.filterNot(_.info.is_space)
     p(TokenParsers.TokenReader(processed))
   }
 }
