@@ -159,11 +159,11 @@ trait TokenParsers extends Parsers {
     case proofToken ~ None => Isar_Proof(None, proofToken.range)
   }
 
-  /* Lemma attributes */
-  def pAttribute: Parser[Elem] = pIdent
+  /* Attributes */
+  def pAttribute: Parser[List[Elem]] = pIdent.*
 
-  def pAttributes: Parser[List[Elem]] =
-    chainl1[List[Elem]](pAttribute ^^ { List(_) }, pKeyword(",") ^^^ { _ ::: _ })
+  def pAttributes: Parser[List[List[Elem]]] =
+    chainl1[List[List[Elem]]](pAttribute ^^ { List(_) }, pKeyword(",") ^^^ { _ ::: _ })
 
   /* Putting things together.. */
   def pCatch: Parser[Unparsed] = pAny.* ^^ Unparsed
@@ -189,6 +189,12 @@ trait TokenParsers extends Parsers {
     parse(p, command.tokens, true) match {
       case Success(result, next) => result
       case n: NoSuccess          => error(s"Failed: $n \n ${command.tokens}")
+    }
+
+  def tryTransform[T](p: Parser[T], command: Parsed_Command): Option[T] =
+    parse(p, command.tokens) match {
+      case Success(result, next) => Some(result)
+      case n: NoSuccess          => None
     }
 
   def mkString(tokens: List[Elem]): String = tokens.map(_.source).mkString
