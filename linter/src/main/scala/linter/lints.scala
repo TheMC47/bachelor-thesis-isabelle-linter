@@ -380,12 +380,19 @@ object Global_Attribute_On_Unnamed_Lemma extends Parser_Lint {
   val severity: Severity.Level = Severity.HIGH
   val category: Category.Name = Category.maintenance
 
+  private def simp_or_cong(attr: List[Elem]): Boolean = attr match {
+    case head :: _ => List("simp", "cong").contains(head.content)
+    case _         => false
+  }
+
   override def parser(report: Reporter): Parser[Some[Lint_Result]] =
     pCommand("lemma") ~> pSqBracketed(pAttributes) >> {
-      _.find(List("simp", "cong") contains _.content) match {
+      _.find(simp_or_cong(_)) match {
         case None => failure("no match")
-        case Some(token) =>
-          success(report("Do not use simplifier attributes on unnamed lemmas.", token.range, None))
+        case Some(tokens) =>
+          success(
+            report("Do not use simplifier attributes on unnamed lemmas.", tokens.head.range, None)
+          )
       }
     }
 }
@@ -396,12 +403,17 @@ object Lemma_Transforming_Attribute extends Parser_Lint {
   val severity: Severity.Level = Severity.MEDIUM
   val category: Category.Name = Category.maintenance
 
+  private def simp_or_cong(attr: List[Elem]): Boolean = attr match {
+    case head :: _ => List("simplified", "rule_format").contains(head.content)
+    case _         => false
+  }
+
   override def parser(report: Reporter): Parser[Some[Lint_Result]] =
     (pCommand("lemma") ~ pIdent.?) ~> pSqBracketed(pAttributes) >> {
-      _.find(List("simplified", "rule_format") contains _.content) match {
+      _.find(simp_or_cong(_)) match {
         case None => failure("no match")
-        case Some(token) =>
-          success(report("Do not use transforming attributes on lemmas.", token.range, None))
+        case Some(tokens) =>
+          success(report("Do not use transforming attributes on lemmas.", tokens.head.range, None))
       }
     }
 }

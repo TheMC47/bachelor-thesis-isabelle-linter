@@ -159,11 +159,11 @@ trait TokenParsers extends Parsers {
     case proofToken ~ None => Isar_Proof(None, proofToken.range)
   }
 
-  /* Lemma attributes */
-  def pAttribute: Parser[Elem] = pIdent
+  /* Attributes */
+  def pAttribute: Parser[List[Elem]] = pIdent.*
 
-  def pAttributes: Parser[List[Elem]] =
-    chainl1[List[Elem]](pAttribute ^^ { List(_) }, pKeyword(",") ^^^ { _ ::: _ })
+  def pAttributes: Parser[List[List[Elem]]] =
+    chainl1[List[List[Elem]]](pAttribute ^^ { List(_) }, pKeyword(",") ^^^ { _ ::: _ })
 
   /* Putting things together.. */
   def pCatch: Parser[Unparsed] = pAny.* ^^ Unparsed
