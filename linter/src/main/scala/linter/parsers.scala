@@ -13,7 +13,8 @@ object TokenParsers extends TokenParsers {
     protected def lineContents: String = (ts map { _.info.content }).mkString
   }
 
-  case class TokenReader(in: List[Text.Info[Token]], from: Int = 0) extends input.Reader[Text.Info[Token]] {
+  case class TokenReader(in: List[Text.Info[Token]], from: Int = 0)
+      extends input.Reader[Text.Info[Token]] {
     def first: Text.Info[Token] = in.head
     def rest: TokenReader = TokenReader(in.tail, from + 1)
     def pos: input.Position = IndexPosition(in, from)
@@ -95,27 +96,34 @@ trait TokenParsers extends Parsers {
   object MethodParsers {
 
     /* Modifiers */
-    def pTry: Parser[Method.Modifier] = pKeyword("?") ^^ { token =>
-      Method.Modifier.Try(token.range)
+    def pTry: Parser[Text.Info[Method.Modifier]] = pKeyword("?") ^^ { case Text.Info(range, _) =>
+      Text.Info(range, Method.Modifier.Try)
     }
-    def pRep1: Parser[Method.Modifier] = pKeyword("+") ^^ { token =>
-      Method.Modifier.Rep1(token.range)
+    def pRep1: Parser[Text.Info[Method.Modifier]] = pKeyword("+") ^^ { case Text.Info(range, _) =>
+      Text.Info(range, Method.Modifier.Rep1)
     }
-    def pRestrict: Parser[Method.Modifier] = pSqBracketed(
-      pNat ^^ (n => Method.Modifier.Restrict(n.info.content.toInt, n.range))
+    def pRestrict: Parser[Text.Info[Method.Modifier]] = pSqBracketed(
+      pNat ^^ { case Text.Info(range, n) =>
+        Text.Info(range, Method.Modifier.Restrict(n.content.toInt))
+      }
     )
-    def pModifier: Parser[Method.Modifier] = pTry | pRep1 | pRestrict
+    def pModifier: Parser[Text.Info[Method.Modifier]] = pTry | pRep1 | pRestrict
 
     /* Combinators  and combined methods */
-    def pCombinator(sep: String, comb: Method.Combinator): Parser[Method] =
-      chainl2(
+    def pCombinator(sep: String, comb: Method.Combinator): Parser[Text.Info[Method]] =
+      chainl2[Text.Info[Method]](
         pMethodInner,
-        pKeyword(sep) ^^^ { (left: Method, right: Method) => Combined_Method(left, comb, right) }
+        pKeyword(sep) ^^^ { (left, right) =>
+          Text.Info(
+            Text.Range(left.range.start, right.range.stop),
+            Combined_Method(left, comb, right)
+          )
+        }
       )
 
-    def pAlt: Parser[Method] = pCombinator("|", Method.Combinator.Alt)
-    def pSeq: Parser[Method] = pCombinator(",", Method.Combinator.Seq)
-    def pStruct: Parser[Method] = pCombinator(";", Method.Combinator.Struct)
+    def pAlt: Parser[Text.Info[Method]] = pCombinator("|", Method.Combinator.Alt)
+    def pSeq: Parser[Text.Info[Method]] = pCombinator(",", Method.Combinator.Seq)
+    def pStruct: Parser[Text.Info[Method]] = pCombinator(";", Method.Combinator.Struct)
 
     /* Simple Methods */
     def pMethodArg: Parser[List[Elem]] = pArg { token =>
@@ -124,39 +132,70 @@ trait TokenParsers extends Parsers {
         (token.is_keyword && "|;,+".exists(token.is_keyword)))
     }
 
-    def pNameOnly: Parser[Simple_Method] = pName ^^ (name => Simple_Method(name))
-    def pNameArgs: Parser[Simple_Method] = pName ~ pMethodArg.* ^^ { case name ~ args =>
-      Simple_Method(name, args = args.flatten)
+    def pNameOnly: Parser[Text.Info[Method]] =
+      pName ^^ (name => Text.Info(name.range, Simple_Method(name)))
+
+    def pNameArgs: Parser[Text.Info[Method]] = pName ~ pMethodArg.* ^^ { case name ~ args =>
+      Text.Info(
+        list_range(name.range :: args.flatten.map(_.range)),
+        Simple_Method(name, args = args.flatten)
+      )
     }
 
+    def addModifier(
+        method: Text.Info[Method],
+        modifier: Option[Text.Info[Method.Modifier]]
+    ): Text.Info[Method] =
+      modifier match {
+        case None => method
+        case Some(mod @ Text.Info(mod_range, _)) =>
+          method.info match {
+            case Combined_Method(left, combinator, right, modifiers) =>
+              Text.Info(
+                Text.Range(method.range.start, mod_range.stop),
+                Combined_Method(
+                  left,
+                  combinator,
+                  right,
+                  modifiers :+ mod
+                )
+              )
+            case Simple_Method(name, modifiers, args) =>
+              Text.Info(
+                Text.Range(method.range.start, mod_range.stop),
+                Simple_Method(name, modifiers :+ mod, args)
+              )
+          }
+      }
+
     /* Method */
-    def pMethod: Parser[Method] =
+    def pMethod: Parser[Text.Info[Method]] =
       (pNameOnly | pParened(pMethods)) ~ pModifier.? ^^ { case body ~ modifier =>
-        Method.addModifier(body, modifier)
+        addModifier(body, modifier)
       }
 
     // Following the railroad diagram, some methods like `(rule exI; auto)` will not get parsed
     // since `rule exI` is not inside parentheses. pMethod should only be used for parsing first
     // level methods.
-    def pMethodInner: Parser[Method] = (pNameArgs | pParened(pMethods)) ~ pModifier.? ^^ {
-      case body ~ modifier =>
-        Method.addModifier(body, modifier)
-    }
+    def pMethodInner: Parser[Text.Info[Method]] =
+      (pNameArgs | pParened(pMethods)) ~ pModifier.? ^^ { case body ~ modifier =>
+        addModifier(body, modifier)
+      }
 
-    def pMethods: Parser[Method] = pAlt | pStruct | pSeq | pNameArgs | pMethod
+    def pMethods: Parser[Text.Info[Method]] = pAlt | pStruct | pSeq | pNameArgs | pMethod
   }
 
   /* Apply */
-  def pApply: Parser[Apply] = pCommand("apply") ~ MethodParsers.pMethod ^^ {
+  def pApply: Parser[Text.Info[DocumentElement]] = pCommand("apply") ~ MethodParsers.pMethod ^^ {
     case applyToken ~ method =>
-      Apply(method, Text.Range(applyToken.range.start, method.range.stop))
+      Text.Info(Text.Range(applyToken.range.start, method.range.stop), Apply(method))
   }
 
   /* Isar-Proof */
-  def pIsarProof: Parser[Isar_Proof] = pCommand("proof") ~ MethodParsers.pMethod.? ^^ {
+  def pIsarProof: Parser[Text.Info[DocumentElement]] = pCommand("proof") ~ MethodParsers.pMethod.? ^^ {
     case proofToken ~ Some(method) =>
-      Isar_Proof(Some(method), Text.Range(proofToken.range.start, method.range.stop))
-    case proofToken ~ None => Isar_Proof(None, proofToken.range)
+      Text.Info(Text.Range(proofToken.range.start, method.range.stop), Isar_Proof(Some(method)))
+    case proofToken ~ None => Text.Info(proofToken.range, Isar_Proof(None))
   }
 
   /* Attributes */
@@ -166,24 +205,9 @@ trait TokenParsers extends Parsers {
     chainl1[List[List[Elem]]](pAttribute ^^ { List(_) }, pKeyword(",") ^^^ { _ ::: _ })
 
   /* Putting things together.. */
-  def pCatch: Parser[Unparsed] = pAny.* ^^ Unparsed
-
   def pAny: Parser[Elem] = elem("any", _ => true)
 
-  def pNotParen: Parser[Elem] = elem("not_paren", t => !(t.info.is_keyword("(") || t.info.is_keyword(")")))
-
-  def pWithParen(p: Parser[List[Elem]]): Parser[List[Elem]] = pOpenParen ~ p ~ pClosedParen ^^ {
-    case r ~ ts ~ l => (r :: ts) :+ l
-  }
-
-  def pAnyBalanced: Parser[List[Elem]] = chainl1(
-    pNotParen.*,
-    pWithParen(pAnyBalanced) ^^ { mid => (l: List[Elem], r: List[Elem]) =>
-      l ::: mid ::: r
-    }
-  )
-
-  def tokenParser: Parser[DocumentElement] = pApply | pIsarProof | pCatch
+  def tokenParser: Parser[Text.Info[DocumentElement]] = pApply | pIsarProof
 
   def doParseTransform(p: Parser[String])(command: Parsed_Command): String =
     parse(p, command.tokens, true) match {

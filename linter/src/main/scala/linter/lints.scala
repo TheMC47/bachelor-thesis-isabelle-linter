@@ -93,15 +93,15 @@ object Unrestricted_Auto extends Proper_Commands_Lint {
 
   private def is_unrestricted_auto__method(method: Method): Boolean = method match {
 
-    case Simple_Method(name, range, modifiers, args) =>
-      name.info.content == "auto" && are_unrestricted(modifiers)
+    case Simple_Method(name, modifiers, args) =>
+      name.info.content == "auto" && are_unrestricted(modifiers.map(_.info))
 
     case _ => false
   }
 
   private def is_unrestricted_auto(element: DocumentElement): Boolean = element match {
-    case Apply(method, range) => is_unrestricted_auto__method(method)
-    case _                    => false
+    case Apply(method) => is_unrestricted_auto__method(method.info)
+    case _             => false
   }
 
   private def report_lint(apply: Parsed_Command, report: Lint_Report): Lint_Report =
@@ -117,7 +117,7 @@ object Unrestricted_Auto extends Proper_Commands_Lint {
   def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
     commands match {
       case (apply @ Parsed_Command("apply")) :: next_command :: next
-          if !is_terminal(next_command) && is_unrestricted_auto(apply.parsed) =>
+          if !is_terminal(next_command) && is_unrestricted_auto(apply.parsed.info) =>
         lint_proper(next_command :: next, report_lint(apply, report))
       case _ :: next => lint_proper(next, report)
       case Nil       => report
@@ -131,14 +131,14 @@ object Low_Level_Apply_Chain extends Proper_Commands_Lint {
   val category: Category.Name = Category.style
 
   private def is_low_level_method(method: Method): Boolean = method match {
-    case Simple_Method(name, range, modifiers, args) =>
+    case Simple_Method(name, modifiers, args) =>
       List("erule", "rule", "simp", "clarsimp", "rule_tac").contains(name.info.content)
     case _ => false
   }
 
-  private def is_low_level_apply(command: Parsed_Command): Boolean = command.parsed match {
-    case Apply(method, range) => is_low_level_method(method)
-    case _                    => false
+  private def is_low_level_apply(command: Parsed_Command): Boolean = command.parsed.info match {
+    case Apply(method) => is_low_level_method(method.info)
+    case _             => false
   }
 
   def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report = {
@@ -483,13 +483,14 @@ object Implicit_Rule extends Structure_Lint {
   val severity: Severity.Level = Severity.MEDIUM
   val category: Category.Name = Category.maintenance
 
-  override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
-    case Simple_Method(RToken(_, "rule", _), range, _, Nil) =>
-      report("Do not use implicit rule.", range, None)
-    case Combined_Method(left, _, right, _, _) =>
-      lint_apply(left, report).orElse(lint_apply(right, report))
-    case _ => None
-  }
+  override def lint_apply(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
+    method.info match {
+      case Simple_Method(RToken(_, "rule", _), _, Nil) =>
+        report("Do not use implicit rule.", method.range, None)
+      case Combined_Method(left, _, right, _) =>
+        lint_apply(left, report).orElse(lint_apply(right, report))
+      case _ => None
+    }
 }
 
 object Complex_Isar_Initial_Method extends Structure_Lint {
@@ -499,15 +500,18 @@ object Complex_Isar_Initial_Method extends Structure_Lint {
   val category: Category.Name = Category.maintenance
 
   def has_auto(method: Method): Boolean = method match {
-    case Simple_Method(RToken(_, name, _), _, _, _) => name == "auto"
-    case Combined_Method(left, _, right, _, _)            => has_auto(left) || has_auto(right)
+    case Simple_Method(RToken(_, name, _), _, _) => name == "auto"
+    case Combined_Method(left, _, right, _)      => has_auto(left.info) || has_auto(right.info)
   }
 
-  override def lint_isar_proof(method: Option[Method], report: Reporter): Option[Lint_Result] =
+  override def lint_isar_proof(
+      method: Option[Text.Info[Method]],
+      report: Reporter
+  ): Option[Lint_Result] =
     for {
-      s_method <- method
+      Text.Info(range, s_method) <- method
       if has_auto(s_method) || Complex_Method.is_complex_method(s_method, allow_modifiers = false)
-    } yield report("Keep initial proof methods simple.", s_method.range, None).get
+    } yield report("Keep initial proof methods simple.", range, None).get
 }
 
 object Force_Failure extends Structure_Lint {
@@ -515,11 +519,12 @@ object Force_Failure extends Structure_Lint {
   val severity: Severity.Level = Severity.LOW
   val category: Category.Name = Category.maintenance
 
-  override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
-    case Simple_Method(RToken(_, "simp", _), range, modifiers, args) =>
-      report("Consider forciing failure.", range, None)
-    case _ => None
-  }
+  override def lint_apply(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
+    method.info match {
+      case Simple_Method(RToken(_, "simp", _), modifiers, args) =>
+        report("Consider forciing failure.", method.range, None)
+      case _ => None
+    }
 }
 
 object Auto_Structural_Composition extends Structure_Lint {
@@ -528,19 +533,20 @@ object Auto_Structural_Composition extends Structure_Lint {
   val category: Category.Name = Category.maintenance
 
   private def has_auto(method: Method): Boolean = method match {
-    case Simple_Method(name, range, modifiers, args) => name.info.source == "auto"
-    case Combined_Method(left, combinator, right, range, modifiers) =>
-      has_auto(left) || has_auto(right)
+    case Simple_Method(name, modifiers, args) => name.info.source == "auto"
+    case Combined_Method(left, combinator, right, modifiers) =>
+      has_auto(left.info) || has_auto(right.info)
 
   }
 
-  override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
-    case Simple_Method(name, range, modifiers, args) => None
-    case Combined_Method(left, Method.Combinator.Struct, right, range, modifiers) =>
-      if (has_auto(left)) report("Do not use apply (auto;...)", range, None) else None
-    case Combined_Method(left, _, right, range, modifiers) =>
-      lint_apply(left, report).orElse(lint_apply(right, report))
-  }
+  override def lint_apply(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
+    method.info match {
+      case Simple_Method(name, modifiers, args) => None
+      case Combined_Method(left, Method.Combinator.Struct, right, modifiers) =>
+        if (has_auto(left.info)) report("Do not use apply (auto;...)", method.range, None) else None
+      case Combined_Method(left, _, right, modifiers) =>
+        lint_apply(left, report).orElse(lint_apply(right, report))
+    }
 }
 
 object Complex_Method extends Structure_Lint {
@@ -554,20 +560,20 @@ object Complex_Method extends Structure_Lint {
   val message: String = "Avoid complex methods."
 
   private def has_modifiers(method: Method): Boolean = method match {
-    case Simple_Method(_, _, modifiers, _) => !modifiers.isEmpty
-    case Combined_Method(left, _, right, _, modifiers) =>
-      !modifiers.isEmpty || has_modifiers(left) || has_modifiers(right)
+    case Simple_Method(_, modifiers, _) => !modifiers.isEmpty
+    case Combined_Method(left, _, right, modifiers) =>
+      !modifiers.isEmpty || has_modifiers(left.info) || has_modifiers(right.info)
   }
 
   private def has_complex_modifiers(method: Method): Boolean = method match {
-    case Simple_Method(_, _, modifiers, _) => modifiers.length > modifier_length
-    case Combined_Method(left, _, right, _, modifiers) =>
-      modifiers.length > modifier_length || has_modifiers(left) || has_modifiers(right)
+    case Simple_Method(_, modifiers, _) => modifiers.length > modifier_length
+    case Combined_Method(left, _, right, modifiers) =>
+      modifiers.length > modifier_length || has_modifiers(left.info) || has_modifiers(right.info)
   }
 
   private def mkList(method: Method): List[Simple_Method] = method match {
-    case s @ Simple_Method(_, _, _, _)         => s :: Nil
-    case Combined_Method(left, _, right, _, _) => mkList(left) ::: mkList(right)
+    case s @ Simple_Method(_, _, _)         => s :: Nil
+    case Combined_Method(left, _, right, _) => mkList(left.info) ::: mkList(right.info)
   }
 
   private def has_many_combinators(method: Method): Boolean =
@@ -578,21 +584,24 @@ object Complex_Method extends Structure_Lint {
       has_many_combinators(method)
 
   def is_complex(element: DocumentElement): Boolean = element match {
-    case Apply(method, _)                => is_complex_method(method)
-    case Isar_Proof(Some(method), range) => is_complex_method(method)
-    case _                               => false
+    case Apply(method)            => is_complex_method(method.info)
+    case Isar_Proof(Some(method)) => is_complex_method(method.info)
+    case _                        => false
   }
 
-  def is_complex(command: Parsed_Command): Boolean = is_complex(command.parsed)
+  def is_complex(command: Parsed_Command): Boolean = is_complex(command.parsed.info)
 
-  override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] =
-    if (is_complex_method(method)) report(message, method.range, None) else None
+  override def lint_apply(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
+    if (is_complex_method(method.info)) report(message, method.range, None) else None
 
-  override def lint_isar_proof(method: Option[Method], report: Reporter): Option[Lint_Result] =
+  override def lint_isar_proof(
+      method: Option[Text.Info[Method]],
+      report: Reporter
+  ): Option[Lint_Result] =
     for {
-      s_method <- method
+      Text.Info(range, s_method) <- method
       if is_complex_method(s_method)
-    } yield report(message, s_method.range, None).get
+    } yield report(message, range, None).get
 
 }
 
@@ -603,8 +612,8 @@ object Print_Structure extends Structure_Lint {
   val category: Category.Name = Category.maintenance
 
   override def lint_document_element(
-      elem: DocumentElement,
+      elem: Text.Info[DocumentElement],
       report: Reporter
   ): Option[Lint_Result] =
-    report(s"Parsed: $elem", elem.range, None)
+    report(s"Parsed: ${elem.info}", elem.range, None)
 }
