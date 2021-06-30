@@ -30,7 +30,9 @@ object Linter {
       }
     )
 
-    configuration.get_lints.foldLeft(Lint_Report.empty)((report, lint) => lint.lint(parsed_commands, report))
+    configuration.get_lints.foldLeft(Lint_Report.empty)((report, lint) =>
+      lint.lint(parsed_commands, report)
+    )
   }
 
   case class Ranged_Token(val token: Token, offset: Text.Offset) {
