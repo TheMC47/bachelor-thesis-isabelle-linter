@@ -35,52 +35,13 @@ object Linter {
     )
   }
 
-  case class Ranged_Token(val token: Token, offset: Text.Offset) {
-    /* Redefining functions from Token, to save a level of inderection */
+  object RToken {
 
-    lazy val content: String = token.content
+    def unapply(r: Text.Info[Token]): Option[(Token.Kind.Value, String, Text.Range)] =
+      Some(r.info.kind, r.info.source, r.range)
 
-    val source: String = token.source
-
-    val range: Text.Range = Text.Range(0, source.length()) + offset
-
-    def is_command: Boolean = token.is_command
-    def is_command(name: String): Boolean = token.is_command(name)
-    def is_keyword: Boolean = token.is_keyword
-    def is_keyword(name: String): Boolean = token.is_keyword(name)
-    def is_keyword(name: Char): Boolean = token.is_keyword(name)
-    def is_delimiter: Boolean = token.is_delimiter
-    def is_ident: Boolean = token.is_ident
-    def is_sym_ident: Boolean = token.is_sym_ident
-    def is_string: Boolean = token.is_string
-    def is_nat: Boolean = token.is_nat
-    def is_float: Boolean = token.is_float
-    def is_name: Boolean = token.is_name
-    def is_embedded: Boolean = token.is_embedded
-    def is_text: Boolean = token.is_text
-    def is_space: Boolean = token.is_space
-    def is_informal_comment: Boolean = token.is_informal_comment
-    def is_formal_comment: Boolean = token.is_formal_comment
-    def is_marker: Boolean = token.is_marker
-    def is_comment: Boolean = token.is_comment
-    def is_ignored: Boolean = token.is_ignored
-    def is_proper: Boolean = token.is_proper
-    def is_error: Boolean = token.is_error
-    def is_unparsed: Boolean = token.is_unparsed
-    def is_unfinished: Boolean = token.is_unfinished
-    def is_open_bracket: Boolean = token.is_open_bracket
-    def is_close_bracket: Boolean = token.is_close_bracket
-    def is_begin: Boolean = token.is_begin
-    def is_end: Boolean = token.is_end
-    def is_begin_or_command: Boolean = token.is_begin_or_command
-    def is_system_name: Boolean = token.is_system_name
-  }
-
-  object Ranged_Token {
-
-    def unapply(r: Ranged_Token): Option[(Token.Kind.Value, String, Text.Range)] =
-      Some(r.token.kind, r.source, r.range)
-
+    def apply(token: Token, offset: Text.Offset): Text.Info[Token] =
+      Text.Info(Text.Range(0, token.source.length()) + offset, token)
   }
 
   def list_range(ranges: List[Text.Range]): Text.Range = ranges match {
@@ -108,18 +69,18 @@ object Linter {
     def generate_positions(
         tokens: List[Token],
         start_offset: Text.Offset
-    ): List[Ranged_Token] = mapAccumL[Token, Text.Offset, Ranged_Token](
+    ): List[Text.Info[Token]] = mapAccumL[Token, Text.Offset, Text.Info[Token]](
       tokens,
       start_offset,
       {
         case (token, offset) => {
-          val ranged_token = Ranged_Token(token, offset)
-          (ranged_token, ranged_token.range.stop)
+          val rtoken = RToken(token, offset)
+          (rtoken, rtoken.range.stop)
         }
       }
     )
 
-    val tokens: List[Ranged_Token] =
+    val tokens: List[Text.Info[Token]] =
       generate_positions(command.span.content, offset)
 
     /* ==== Parsing ====
@@ -177,20 +138,20 @@ object Linter {
   abstract class Method(override val range: Text.Range) extends DocumentElement(range)
 
   case class Simple_Method(
-      val name: Ranged_Token,
+      val name: Text.Info[Token],
       override val range: Text.Range,
       val modifiers: List[Method.Modifier] = Nil,
-      val args: List[Ranged_Token] = Nil
+      val args: List[Text.Info[Token]] = Nil
   ) extends Method(range)
   object Simple_Method {
 
     def apply(
-        name: Ranged_Token,
-        args: List[Ranged_Token]
+        name: Text.Info[Token],
+        args: List[Text.Info[Token]]
     ): Simple_Method =
       Simple_Method(name, name.range, Nil, args)
 
-    def apply(name: Ranged_Token): Simple_Method =
+    def apply(name: Text.Info[Token]): Simple_Method =
       Simple_Method(name, name.range, Nil, Nil)
   }
 
@@ -209,7 +170,7 @@ object Linter {
   case class Apply(val method: Method, override val range: Text.Range) extends Proof(range)
   case class Isar_Proof(val method: Option[Method], override val range: Text.Range)
       extends Proof(range)
-  case class Unparsed(val tokens: List[Ranged_Token]) extends DocumentElement(Text.Range(0))
+  case class Unparsed(val tokens: List[Text.Info[Token]]) extends DocumentElement(Text.Range(0))
   case class Failed(val string: String) extends DocumentElement(Text.Range(0))
 
   /* ==== Linting ====
@@ -328,7 +289,7 @@ object Linter {
    * */
 
   abstract class Raw_Token_Stream_Lint extends Single_Command_Lint {
-    def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Result]
+    def lint(tokens: List[Text.Info[Token]], report: Reporter): Option[Lint_Result]
 
     def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] =
       lint(command.tokens, report)

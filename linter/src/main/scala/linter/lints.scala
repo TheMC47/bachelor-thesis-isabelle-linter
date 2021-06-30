@@ -94,7 +94,7 @@ object Unrestricted_Auto extends Proper_Commands_Lint {
   private def is_unrestricted_auto__method(method: Method): Boolean = method match {
 
     case Simple_Method(name, range, modifiers, args) =>
-      name.content == "auto" && are_unrestricted(modifiers)
+      name.info.content == "auto" && are_unrestricted(modifiers)
 
     case _ => false
   }
@@ -132,7 +132,7 @@ object Low_Level_Apply_Chain extends Proper_Commands_Lint {
 
   private def is_low_level_method(method: Method): Boolean = method match {
     case Simple_Method(name, range, modifiers, args) =>
-      List("erule", "rule", "simp", "clarsimp", "rule_tac").contains(name.content)
+      List("erule", "rule", "simp", "clarsimp", "rule_tac").contains(name.info.content)
     case _ => false
   }
 
@@ -172,7 +172,7 @@ object Global_Attribute_Changes extends Proper_Commands_Lint with TokenParsers {
   type Declaration = (String, List[String]) // Identifier, attribute list without whitespaces
 
   private def declaration: Parser[Declaration] = pIdent ~ pSqBracketed(pAttributes) ^^ {
-    case identifier ~ attributes => (identifier.content, attributes map mkString)
+    case identifier ~ attributes => (identifier.info.content, attributes map mkString)
   }
 
   private def declare_command: Parser[List[Declaration]] =
@@ -263,9 +263,9 @@ object Axiomatization_With_Where extends Raw_Token_Stream_Lint {
   val severity: Severity.Level = Severity.HIGH
   val category: Category.Name = Category.maintenance
 
-  def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Result] = tokens match {
-    case Ranged_Token(Token.Kind.COMMAND, "axiomatization", range) :: next =>
-      next.dropWhile(_.source != "where") match {
+  def lint(tokens: List[Text.Info[Token]], report: Reporter): Option[Lint_Result] = tokens match {
+    case RToken(Token.Kind.COMMAND, "axiomatization", range) :: next =>
+      next.dropWhile(_.info.source != "where") match {
         case xs @ (_ :: _) =>
           report(
             """Do not use axiomatization with a where clause.""",
@@ -290,8 +290,8 @@ abstract class Illegal_Command_Lint(
   val severity: Severity.Level = lint_severity
   val category: Category.Name = lint_category
 
-  def lint(tokens: List[Ranged_Token], report: Reporter): Option[Lint_Result] = tokens match {
-    case head :: _ if (illegal_commands.contains(head.content)) =>
+  def lint(tokens: List[Text.Info[Token]], report: Reporter): Option[Lint_Result] = tokens match {
+    case head :: _ if (illegal_commands.contains(head.info.content)) =>
       report(
         message,
         head.range,
@@ -427,9 +427,10 @@ object Short_Name extends Parser_Lint {
   val category: Category.Name = Category.style
 
   override def parser(report: Reporter): Parser[Some[Lint_Result]] =
-    pCommand("fun", "definition") ~> elem("ident", _.content.size < 2) ^^ (token =>
-      report(s"""Name "${token.content}" is too short.""", token.range, None)
-    )
+    pCommand("fun", "definition") ~> elem("ident", _.info.content.size < 2) ^^ {
+      case Text.Info(range, token) =>
+        report(s"""Name "${token.content}" is too short.""", range, None)
+    }
 }
 
 object Global_Attribute_On_Unnamed_Lemma extends Parser_Lint {
@@ -439,7 +440,7 @@ object Global_Attribute_On_Unnamed_Lemma extends Parser_Lint {
   val category: Category.Name = Category.maintenance
 
   private def simp_or_cong(attr: List[Elem]): Boolean = attr match {
-    case head :: _ => List("simp", "cong").contains(head.content)
+    case head :: _ => List("simp", "cong").contains(head.info.content)
     case _         => false
   }
 
@@ -462,7 +463,7 @@ object Lemma_Transforming_Attribute extends Parser_Lint {
   val category: Category.Name = Category.maintenance
 
   private def simp_or_cong(attr: List[Elem]): Boolean = attr match {
-    case head :: _ => List("simplified", "rule_format").contains(head.content)
+    case head :: _ => List("simplified", "rule_format").contains(head.info.content)
     case _         => false
   }
 
@@ -483,7 +484,7 @@ object Implicit_Rule extends Structure_Lint {
   val category: Category.Name = Category.maintenance
 
   override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
-    case Simple_Method(Ranged_Token(_, "rule", _), range, _, Nil) =>
+    case Simple_Method(RToken(_, "rule", _), range, _, Nil) =>
       report("Do not use implicit rule.", range, None)
     case Combined_Method(left, _, right, _, _) =>
       lint_apply(left, report).orElse(lint_apply(right, report))
@@ -498,7 +499,7 @@ object Complex_Isar_Initial_Method extends Structure_Lint {
   val category: Category.Name = Category.maintenance
 
   def has_auto(method: Method): Boolean = method match {
-    case Simple_Method(Ranged_Token(_, name, _), _, _, _) => name == "auto"
+    case Simple_Method(RToken(_, name, _), _, _, _) => name == "auto"
     case Combined_Method(left, _, right, _, _)            => has_auto(left) || has_auto(right)
   }
 
@@ -515,7 +516,7 @@ object Force_Failure extends Structure_Lint {
   val category: Category.Name = Category.maintenance
 
   override def lint_apply(method: Method, report: Reporter): Option[Lint_Result] = method match {
-    case Simple_Method(Ranged_Token(_, "simp", _), range, modifiers, args) =>
+    case Simple_Method(RToken(_, "simp", _), range, modifiers, args) =>
       report("Consider forciing failure.", range, None)
     case _ => None
   }
@@ -527,7 +528,7 @@ object Auto_Structural_Composition extends Structure_Lint {
   val category: Category.Name = Category.maintenance
 
   private def has_auto(method: Method): Boolean = method match {
-    case Simple_Method(name, range, modifiers, args) => name.source == "auto"
+    case Simple_Method(name, range, modifiers, args) => name.info.source == "auto"
     case Combined_Method(left, combinator, right, range, modifiers) =>
       has_auto(left) || has_auto(right)
 

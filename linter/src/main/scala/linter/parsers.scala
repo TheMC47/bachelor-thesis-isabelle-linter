@@ -7,14 +7,14 @@ import isabelle._
 import Linter._
 object TokenParsers extends TokenParsers {
 
-  case class IndexPosition(val ts: List[Ranged_Token], val i: Int) extends input.Position {
-    def column: Int = ts.slice(0, i + 1).map(_.content.size).sum
+  case class IndexPosition(val ts: List[Text.Info[Token]], val i: Int) extends input.Position {
+    def column: Int = ts.slice(0, i + 1).map(_.info.content.size).sum
     def line: Int = 0
-    protected def lineContents: String = (ts map { _.content }).mkString
+    protected def lineContents: String = (ts map { _.info.content }).mkString
   }
 
-  case class TokenReader(in: List[Ranged_Token], from: Int = 0) extends input.Reader[Ranged_Token] {
-    def first: Ranged_Token = in.head
+  case class TokenReader(in: List[Text.Info[Token]], from: Int = 0) extends input.Reader[Text.Info[Token]] {
+    def first: Text.Info[Token] = in.head
     def rest: TokenReader = TokenReader(in.tail, from + 1)
     def pos: input.Position = IndexPosition(in, from)
     def atEnd: Boolean = in.isEmpty
@@ -23,7 +23,7 @@ object TokenParsers extends TokenParsers {
 }
 
 trait TokenParsers extends Parsers {
-  type Elem = Ranged_Token
+  type Elem = Text.Info[Token]
 
   /* Utilities */
 
@@ -52,19 +52,19 @@ trait TokenParsers extends Parsers {
     token.is_keyword ||
     token.kind == Token.Kind.CARTOUCHE
 
-  def is_atom(rtoken: Ranged_Token): Boolean = is_atom(rtoken.token)
+  def is_atom(rtoken: Text.Info[Token]): Boolean = is_atom(rtoken.info)
 
   /* Token kinds */
-  def pCommand(name: String): Parser[Elem] = elem(name, _.is_command(name))
+  def pCommand(name: String): Parser[Elem] = elem(name, _.info.is_command(name))
   def pCommand(names: String*): Parser[Elem] = anyOf(names.map(pCommand(_)))
 
-  def pSpace: Parser[Elem] = elem("space", _.is_space)
+  def pSpace: Parser[Elem] = elem("space", _.info.is_space)
 
-  def pKeyword(name: String): Parser[Elem] = elem(name, _.is_keyword(name))
-  def pIdent: Parser[Elem] = elem("ident", _.is_ident)
-  def pSymIdent: Parser[Elem] = elem("sym_ident", _.is_sym_ident)
-  def pNat: Parser[Elem] = elem("nat", _.is_nat)
-  def pString: Parser[Elem] = elem("string", _.is_string)
+  def pKeyword(name: String): Parser[Elem] = elem(name, _.info.is_keyword(name))
+  def pIdent: Parser[Elem] = elem("ident", _.info.is_ident)
+  def pSymIdent: Parser[Elem] = elem("sym_ident", _.info.is_sym_ident)
+  def pNat: Parser[Elem] = elem("nat", _.info.is_nat)
+  def pString: Parser[Elem] = elem("string", _.info.is_string)
 
   /* Surrounded parsers */
   def pSurrounded[T, U](left: Parser[T], right: Parser[T])(center: Parser[U]): Parser[U] =
@@ -81,8 +81,8 @@ trait TokenParsers extends Parsers {
 
   // Atoms can be too general, so propagate a predicate
   def pAtom(pred: Token => Boolean): Parser[Elem] =
-    elem("atom", (t => is_atom(t) && pred(t.token)))
-  def pName: Parser[Elem] = elem("name", _.is_name)
+    elem("atom", (t => is_atom(t) && pred(t.info)))
+  def pName: Parser[Elem] = elem("name", _.info.is_name)
 
   /* Args */
   def pSingle_Arg(pred: Token => Boolean): Parser[List[Elem]] = pAtom(pred) ^^ { List(_) }
@@ -102,7 +102,7 @@ trait TokenParsers extends Parsers {
       Method.Modifier.Rep1(token.range)
     }
     def pRestrict: Parser[Method.Modifier] = pSqBracketed(
-      pNat ^^ (n => Method.Modifier.Restrict(n.content.toInt, n.range))
+      pNat ^^ (n => Method.Modifier.Restrict(n.info.content.toInt, n.range))
     )
     def pModifier: Parser[Method.Modifier] = pTry | pRep1 | pRestrict
 
@@ -170,7 +170,7 @@ trait TokenParsers extends Parsers {
 
   def pAny: Parser[Elem] = elem("any", _ => true)
 
-  def pNotParen: Parser[Elem] = elem("not_paren", t => !(t.is_keyword("(") || t.is_keyword(")")))
+  def pNotParen: Parser[Elem] = elem("not_paren", t => !(t.info.is_keyword("(") || t.info.is_keyword(")")))
 
   def pWithParen(p: Parser[List[Elem]]): Parser[List[Elem]] = pOpenParen ~ p ~ pClosedParen ^^ {
     case r ~ ts ~ l => (r :: ts) :+ l
@@ -197,10 +197,10 @@ trait TokenParsers extends Parsers {
       case n: NoSuccess          => None
     }
 
-  def mkString(tokens: List[Elem]): String = tokens.map(_.source).mkString
+  def mkString(tokens: List[Elem]): String = tokens.map(_.info.source).mkString
 
   def parse[T](p: Parser[T], in: List[Elem], keepSpaces: Boolean = false): ParseResult[T] = {
-    val processed = if (keepSpaces) in else in.filterNot(_.is_space)
+    val processed = if (keepSpaces) in else in.filterNot(_.info.is_space)
     p(TokenParsers.TokenReader(processed))
   }
 }
