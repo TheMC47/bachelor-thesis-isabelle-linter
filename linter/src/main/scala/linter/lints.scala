@@ -163,6 +163,76 @@ object Low_Level_Apply_Chain extends Proper_Commands_Lint {
   }
 }
 
+object Global_Attribute_Changes extends Proper_Commands_Lint with TokenParsers {
+
+  val name: String = "global_attribute_changes"
+  val severity: Severity.Level = Severity.LOW
+  val category: Category.Name = Category.style
+
+  type Declaration = (String, List[String]) // Identifier, attribute list without whitespaces
+
+  private def declaration: Parser[Declaration] = pIdent ~ pSqBracketed(pAttributes) ^^ {
+    case identifier ~ attributes => (identifier.content, attributes map mkString)
+  }
+
+  private def declare_command: Parser[List[Declaration]] =
+    pCommand("declare") ~> chainl1[List[Declaration]](
+      declaration ^^ { List(_) },
+      pKeyword("and") ^^^ { _ ::: _ }
+    )
+
+  private def has_simp(attrs: List[String]): Boolean =
+    attrs.exists(attr => attr == "simp" || attr == "simpadd")
+
+  private def has_simp_del(attrs: List[String]): Boolean =
+    attrs.exists(_ == "simpdel") // Whitespaces are ignored
+
+  private def proces_declaration(command: Parsed_Command)(
+      report_simpset: (Lint_Report, Set[String]),
+      declaration: Declaration
+  ): (Lint_Report, Set[String]) = {
+    val (ident, attrs) = declaration
+    val (report, simpset) = report_simpset
+    val new_report =
+      if (simpset.contains(ident) && has_simp_del(attrs))
+        add_result(
+          "Use context or bundles instead of global simp attribute changes.",
+          command.range,
+          None,
+          command,
+          report
+        )
+      else report
+    val new_simpset =
+      if (has_simp(attrs)) simpset + ident
+      else if (has_simp_del(attrs)) simpset - ident
+      else simpset
+    (new_report, new_simpset)
+  }
+
+  @tailrec
+  private def go(
+      commands: List[Parsed_Command],
+      report: Lint_Report,
+      simpset: Set[String]
+  ): Lint_Report = commands match {
+    case (head @ Parsed_Command("declare")) :: next =>
+      tryTransform(declare_command, head) match {
+        case Some(decls) =>
+          val (new_report, new_simpset) =
+            decls.foldLeft((report, simpset))(proces_declaration(head))
+          go(next, new_report, new_simpset)
+        case None => go(next, report, simpset)
+      }
+
+    case _ :: next => go(next, report, simpset)
+    case Nil       => report
+  }
+
+  def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
+    go(commands, report, Set.empty)
+}
+
 object Use_Isar extends Single_Command_Lint {
 
   val name: String = "use_isar"

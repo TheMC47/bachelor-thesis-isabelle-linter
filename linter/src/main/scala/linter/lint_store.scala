@@ -33,7 +33,8 @@ object Lint_Store {
     Force_Failure,
     Auto_Structural_Composition,
     Print_Structure,
-    Complex_Method
+    Complex_Method,
+    Global_Attribute_Changes
   )
 
   for (lint <- all_lints) register_lint(lint)
