@@ -191,6 +191,12 @@ trait TokenParsers extends Parsers {
       case n: NoSuccess          => error(s"Failed: $n \n ${command.tokens}")
     }
 
+  def tryTransform[T](p: Parser[T], command: Parsed_Command): Option[T] =
+    parse(p, command.tokens) match {
+      case Success(result, next) => Some(result)
+      case n: NoSuccess          => None
+    }
+
   def mkString(tokens: List[Elem]): String = tokens.map(_.source).mkString
 
   def parse[T](p: Parser[T], in: List[Elem], keepSpaces: Boolean = false): ParseResult[T] = {
