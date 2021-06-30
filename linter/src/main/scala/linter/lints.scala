@@ -15,15 +15,12 @@ object Apply_Isar_Switch extends Proper_Commands_Lint {
   def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
     commands match {
       case Parsed_Command("apply") :: (proof @ Parsed_Command("proof")) :: next => {
-        val new_report = report.add_result(
-          Lint_Result(
-            name,
-            "Do not switch between apply-style and ISAR proofs.",
-            proof.range,
-            None,
-            severity,
-            proof
-          )
+        val new_report = add_result(
+          "Do not switch between apply-style and ISAR proofs.",
+          proof.range,
+          None,
+          proof,
+          report
         )
         lint_proper(next, new_report)
       }
@@ -55,15 +52,12 @@ object Use_By extends Proper_Commands_Lint with TokenParsers {
     }
 
   private def report_lint(apply_script: List[Parsed_Command], report: Lint_Report): Lint_Report =
-    report.add_result(
-      Lint_Result(
-        name,
-        """Use "by" instead of a short apply-script.""",
-        apply_script.head.range,
-        Some(Edit(list_range(apply_script map (_.range)), edits(apply_script))),
-        severity,
-        apply_script.head
-      )
+    add_result(
+      """Use "by" instead of a short apply-script.""",
+      apply_script.head.range,
+      Some(Edit(list_range(apply_script map (_.range)), edits(apply_script))),
+      apply_script.head,
+      report
     )
 
   @tailrec
@@ -111,15 +105,12 @@ object Unrestricted_Auto extends Proper_Commands_Lint {
   }
 
   private def report_lint(apply: Parsed_Command, report: Lint_Report): Lint_Report =
-    report.add_result(
-      Lint_Result(
-        name,
-        "Do not use unrestricted auto as a non-terminal proof method.",
-        apply.range,
-        None,
-        severity,
-        apply
-      )
+    add_result(
+      "Do not use unrestricted auto as a non-terminal proof method.",
+      apply.range,
+      None,
+      apply,
+      report
     )
 
   @tailrec
@@ -156,15 +147,12 @@ object Low_Level_Apply_Chain extends Proper_Commands_Lint {
 
     val new_report =
       if (low_level_commands.length >= 5)
-        report.add_result(
-          Lint_Result(
-            name,
-            "Compress low-level proof methods into automated search.",
-            low_level_commands.head.range,
-            None,
-            severity,
-            low_level_commands.head
-          )
+        add_result(
+          "Compress low-level proof methods into automated search.",
+          low_level_commands.head.range,
+          None,
+          low_level_commands.head,
+          report
         )
       else
         report

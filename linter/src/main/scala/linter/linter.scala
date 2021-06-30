@@ -275,6 +275,24 @@ object Linter {
       lint_proper(commands.filter(_.command.is_proper), report)
 
     def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report
+
+    def add_result(
+        message: String,
+        range: Text.Range,
+        edit: Option[Edit],
+        command: Parsed_Command,
+        report: Lint_Report
+    ): Lint_Report =
+      report.add_result(
+        Lint_Result(
+          name,
+          message,
+          range,
+          edit,
+          severity,
+          command
+        )
+      )
   }
 
   abstract class Single_Command_Lint extends Lint {
