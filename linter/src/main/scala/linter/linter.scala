@@ -7,14 +7,6 @@ import scala.collection.immutable
 
 object Linter {
 
-  def mapAccumL[A, B, C](xs: List[A], acc: B, result: (A, B) => (C, B)): List[C] = xs match {
-    case Nil => Nil
-    case head :: next =>
-      result(head, acc) match {
-        case (y, new_acc) => y :: mapAccumL(next, new_acc, result)
-      }
-  }
-
   def lint(
       snapshot: Document.Snapshot,
       configuration: Linter_Configuration
@@ -63,7 +55,7 @@ object Linter {
     def generate_positions(
         tokens: List[Token],
         start_offset: Text.Offset
-    ): List[Text.Info[Token]] = mapAccumL[Token, Text.Offset, Text.Info[Token]](
+    ): List[Text.Info[Token]] = Utils.mapAccumL[Token, Text.Offset, Text.Info[Token]](
       tokens,
       start_offset,
       {
