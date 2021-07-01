@@ -83,47 +83,7 @@ object Linter {
 
   }
 
-  abstract class DocumentElement
-  abstract class Proof extends DocumentElement
-
-  object Method {
-    /* Modifiers */
-    abstract class Modifier
-    object Modifier {
-      object Try extends Modifier // ?
-      object Rep1 extends Modifier // +
-      case class Restrict(val n: Int) extends Modifier // [n]
-    }
-
-    /* Combinators */
-
-    trait Combinator
-    object Combinator {
-      object Seq extends Combinator // ,
-      object Struct extends Combinator // ;
-      object Alt extends Combinator // |
-    }
-
-  }
-
-  abstract class Method extends DocumentElement
-
-  case class Simple_Method(
-      val name: Text.Info[Token],
-      val modifiers: List[Text.Info[Method.Modifier]] = Nil,
-      val args: List[Text.Info[Token]] = Nil
-  ) extends Method
-
-  case class Combined_Method(
-      val left: Text.Info[Method],
-      val combinator: Method.Combinator,
-      val right: Text.Info[Method],
-      val modifiers: List[Text.Info[Method.Modifier]] = Nil
-  ) extends Method
-
-  case class Apply(val method: Text.Info[Method]) extends Proof
-  case class Isar_Proof(val method: Option[Text.Info[Method]]) extends Proof
-  case class Failed(val string: String) extends DocumentElement
+  abstract class DocumentElement // Refined in ast.scala
 
   /* ==== Linting ====
    * A Lint needs to define a function, lint, that takes a Parsed_Command and optionally returns a
