@@ -21,14 +21,7 @@ object Linter {
   ): Lint_Report = {
 
     val commands = snapshot.node.commands.iterator.toList
-    val parsed_commands = mapAccumL[Command, Text.Offset, Parsed_Command](
-      commands,
-      0,
-      { case (command, offset) =>
-        val parsed_command = Parsed_Command(command, snapshot, offset)
-        (parsed_command, parsed_command.range.stop)
-      }
-    )
+    val parsed_commands = commands.map(Parsed_Command(_, snapshot))
 
     configuration.get_lints.foldLeft(Lint_Report.empty)((report, lint) =>
       lint.lint(parsed_commands, report)
@@ -55,12 +48,13 @@ object Linter {
 
   case class Parsed_Command(
       val command: Command,
-      snapshot: Document.Snapshot,
-      offset: Text.Offset
+      snapshot: Document.Snapshot
   ) {
     val node_name: Document.Node.Name = snapshot.node_name
 
     val kind: String = command.span.kind.toString()
+
+    val offset: Text.Offset = snapshot.node.command_start(command).getOrElse(0)
 
     val range: Text.Range = command.range + offset
 
