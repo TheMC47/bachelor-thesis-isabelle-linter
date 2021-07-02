@@ -97,9 +97,23 @@ object Linter {
       val range: Text.Range,
       val edit: Option[Edit],
       val severity: Severity.Value,
-      command: Parsed_Command
+      val commands: List[Parsed_Command]
   ) {
-    val node_name: Document.Node.Name = command.node_name
+    if (commands.isEmpty)
+      error("Expected at least one command.")
+    val node_name: Document.Node.Name = commands.head.node_name
+  }
+
+  object Lint_Result {
+
+    def apply(
+        lint_name: String,
+        message: String,
+        range: Text.Range,
+        edit: Option[Edit],
+        severity: Severity.Value,
+        command: Parsed_Command
+    ): Lint_Result = Lint_Result(lint_name, message, range, edit, severity, command :: Nil)
   }
 
   object Lint_Report {
@@ -177,6 +191,24 @@ object Linter {
           edit,
           severity,
           command
+        )
+      )
+
+    def add_result(
+        message: String,
+        range: Text.Range,
+        edit: Option[Edit],
+        commands: List[Parsed_Command],
+        report: Lint_Report
+    ): Lint_Report =
+      report.add_result(
+        Lint_Result(
+          name,
+          message,
+          range,
+          edit,
+          severity,
+          commands
         )
       )
   }

@@ -54,9 +54,9 @@ object Use_By extends Proper_Commands_Lint with TokenParsers {
   private def report_lint(apply_script: List[Parsed_Command], report: Lint_Report): Lint_Report =
     add_result(
       """Use "by" instead of a short apply-script.""",
-      apply_script.head.range,
+      list_range(apply_script.map(_.range)),
       Some(Edit(list_range(apply_script map (_.range)), edits(apply_script))),
-      apply_script.head,
+      apply_script,
       report
     )
 
@@ -149,9 +149,9 @@ object Low_Level_Apply_Chain extends Proper_Commands_Lint {
       if (low_level_commands.length >= 5)
         add_result(
           "Compress low-level proof methods into automated search.",
-          low_level_commands.head.range,
+          list_range(low_level_commands.map(_.range)),
           None,
-          low_level_commands.head,
+          low_level_commands,
           report
         )
       else
