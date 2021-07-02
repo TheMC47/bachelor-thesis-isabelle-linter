@@ -106,12 +106,25 @@ object Linter {
     val empty: Lint_Report = Lint_Report(Nil)
   }
 
-  case class Lint_Report(val results: List[Lint_Result]) {
+  case class Lint_Report(val _results: List[Lint_Result]) {
 
-    def add_result(result: Lint_Result): Lint_Report = Lint_Report(result :: results)
+    def add_result(result: Lint_Result): Lint_Report = Lint_Report(result :: _results)
 
-    def command_lint(id: Document_ID.Command): List[Lint_Result] =
-      results.filter(_.command.command.id == id)
+    def results: List[Lint_Result] =
+      _results.sortWith((r1, r2) => Text.Range.Ordering.compare(r1.range, r2.range) < 0)
+
+    def command_lints(id: Document_ID.Command): List[Lint_Result] =
+      results
+        .filter(_.commands.exists(_.command.id == id))
+        .sortBy(-_.severity.id) // Highest severity first
+
+    def lint_ranges(
+        line_range: Text.Range = Text.Range.full
+    ): List[Text.Info[Linter.Severity.Level]] =
+      results
+        .filter(lint_result => !line_range.apart(lint_result.range))
+        .map(lint_result => Text.Info(lint_result.range.restrict(line_range), lint_result.severity))
+        .sortBy(_.info.id) // Lowest severity first
   }
 
   case class Edit(val range: Text.Range, val replacement: String, val msg: Option[String] = None) {
