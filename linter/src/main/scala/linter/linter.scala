@@ -128,14 +128,12 @@ object Linter {
       _results.sortWith((r1, r2) => Text.Range.Ordering.compare(r1.range, r2.range) < 0)
 
     def command_lints(id: Document_ID.Command): List[Lint_Result] =
-      results
+      _results
         .filter(_.commands.exists(_.command.id == id))
         .sortBy(-_.severity.id) // Highest severity first
 
-    def lint_ranges(
-        line_range: Text.Range = Text.Range.full
-    ): List[Text.Info[Linter.Severity.Level]] =
-      results
+    def ranges(line_range: Text.Range = Text.Range.full): List[Text.Info[Linter.Severity.Level]] =
+      _results
         .filter(lint_result => !line_range.apart(lint_result.range))
         .map(lint_result => Text.Info(lint_result.range.restrict(line_range), lint_result.severity))
         .sortBy(_.info.id) // Lowest severity first
