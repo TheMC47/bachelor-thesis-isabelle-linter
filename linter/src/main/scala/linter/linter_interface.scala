@@ -2,7 +2,7 @@ package linter
 
 import isabelle._
 
-class Linter_Interface {
+class Linter_Interface[A](reporter: Reporter[A]) {
 
   var lint_cache: Map[Document.Node.Name, (Document.Version, Linter.Lint_Report)] = Map.empty
   var configuration: Linter_Configuration = Linter_Configuration.empty
@@ -25,19 +25,23 @@ class Linter_Interface {
       .getOrElse(Linter.Lint_Report.empty)
   }
 
+  def report_for_command(snapshot: Document.Snapshot, id: Document_ID.Command): A =
+    reporter.report_for_command(lint_report(snapshot), id)
 
+  def report_for_snapshot(snapshot: Document.Snapshot): A =
+    reporter.report_for_snapshot(lint_report(snapshot))
 }
 
-class Linter_Variable {
-  private val no_linter: Option[Linter_Interface] = None
-  private var current_linter: Option[Linter_Interface] = no_linter
+class Linter_Variable[A](reporter: Reporter[A]) {
+  private val no_linter: Option[Linter_Interface[A]] = None
+  private var current_linter: Option[Linter_Interface[A]] = no_linter
 
-  def get: Option[Linter_Interface] = synchronized { current_linter }
+  def get: Option[Linter_Interface[A]] = synchronized { current_linter }
 
   def update(options: Options): Unit = synchronized {
     if (options.bool("linter")) {
       if (current_linter.isEmpty) {
-        current_linter = Some(new Linter_Interface)
+        current_linter = Some(new Linter_Interface(reporter))
       }
     } else current_linter = no_linter
     for (linter <- current_linter) {

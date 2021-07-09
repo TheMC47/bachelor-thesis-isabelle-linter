@@ -2,10 +2,31 @@ package linter
 
 import isabelle._
 
-object XML_Lint_Reporter {
+abstract class Reporter[A] {
+  def report_for_command(lint_results: Linter.Lint_Report, id: Document_ID.Command): A
 
-  def report_lints(
+  def report_for_snapshot(lint_results: Linter.Lint_Report): A
+}
+
+object XML_Lint_Reporter extends Reporter[XML.Body] {
+
+  def report_for_command(lint_report: Linter.Lint_Report, id: Document_ID.Command): XML.Body = {
+    val xml = report_lints(lint_report.command_lints(id))
+    if (xml.isEmpty) Nil
+    else XML.elem(Markup.KEYWORD1, text("lints:")) :: xml
+  }
+
+  def report_for_snapshot(lint_report: Linter.Lint_Report): XML.Body =
+    report_lints(
+      lint_report.results,
+      print_number = false,
+      print_location = true,
+      print_name = true
+    )
+
+  private def report_lints(
       lint_results: List[Linter.Lint_Result],
+      print_number: Boolean = true,
       print_location: Boolean = false,
       print_name: Boolean = false
   ): XML.Body =
@@ -14,15 +35,17 @@ object XML_Lint_Reporter {
         report_lint(
           ri._1,
           ri._2,
+          print_number = print_number,
           print_location = print_location,
           print_name = print_name
         )
       )
       .flatten
 
-  def report_lint(
+  private def report_lint(
       lint_result: Linter.Lint_Result,
       lint_number: Int = 0,
+      print_number: Boolean = true,
       print_location: Boolean = false,
       print_name: Boolean = false
   ): XML.Body = {
@@ -36,7 +59,12 @@ object XML_Lint_Reporter {
       text(s"At ${text_range_to_line(lint_result.range).start.print}:\n")
     )
 
-    val message = text(s" ${lint_number + 1}. ${lint_result.message}")
+    val message =
+      if (print_number)
+        text(s" ${lint_number + 1}. ${lint_result.message}")
+      else
+        text(s" ${lint_result.message}")
+
     val lint_name =
       when(print_name, text(s" [lint name: ${lint_result.lint_name}]"))
 
