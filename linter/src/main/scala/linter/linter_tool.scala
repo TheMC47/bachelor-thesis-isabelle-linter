@@ -5,10 +5,6 @@ import scala.collection.immutable
 
 object Linter_Tool {
 
-  def report(lint_report: Linter.Lint_Result, progress: Progress): Unit = {
-    progress.echo(s"Lint: $lint_report")
-  }
-
   def lint(
       options: Options,
       logic: String,
@@ -30,13 +26,19 @@ object Linter_Tool {
         skip_base = true
       )
 
+    val linter_variable = new Linter_Variable(XML_Lint_Reporter, cache = false)
+    linter_variable.update(options + "linter=true")
+
+    val linter = linter_variable.get.get
+
     context.build_logic(logic)
     context
       .sessions(logic, log = log)
       .foreach(_.process((args: Dump.Args) => {
         progress.echo("Processing theory " + args.print_node + " ...")
         val snapshot = args.snapshot
-        Linter.lint(snapshot, Linter_Configuration(Set(Print_Structure.name))).results.map(report(_, progress))
+        val report = linter.report_for_snapshot(snapshot)
+        progress.echo(YXML.string_of_body(report)) // TODO reporting
       }))
 
     context.check_errors
@@ -76,11 +78,10 @@ Usage: isabelle lint [OPTIONS] [SESSIONS ...]
     -d DIR       include session directory
     -g NAME      select session group NAME
     -o OPTION    override Isabelle system OPTION (via NAME=VAL or NAME)
-    -u OPT       overide update option: shortcut for "-o update_OPT"
     -v           verbose
     -x NAME      exclude session NAME and all descendants
 
-  Update theory sources based on PIDE markup.
+  Lint isabelle theories.
 """,
           "B:" -> (arg => base_sessions = base_sessions ::: List(arg)),
           "D:" -> (arg => select_dirs = select_dirs ::: List(Path.explode(arg))),
@@ -91,7 +92,6 @@ Usage: isabelle lint [OPTIONS] [SESSIONS ...]
           "d:" -> (arg => dirs = dirs ::: List(Path.explode(arg))),
           "g:" -> (arg => session_groups = session_groups ::: List(arg)),
           "o:" -> (arg => options = options + arg),
-          "u:" -> (arg => options = options + ("update_" + arg)),
           "v" -> (_ => verbose = true),
           "x:" -> (arg => exclude_sessions = exclude_sessions ::: List(arg))
         )
