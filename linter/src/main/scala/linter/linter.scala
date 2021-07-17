@@ -228,28 +228,6 @@ object Linter {
     def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result]
   }
 
-  /* Lints that use raw commands
-   * */
-  abstract class Raw_Command_Lint extends Single_Command_Lint {
-    def lint_command(
-        command: Command,
-        report: Reporter
-    ): Option[Lint_Result]
-
-    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] =
-      lint_command(command.command, report)
-  }
-
-  /* Lints that use a raw token stream
-   * */
-
-  abstract class Raw_Token_Stream_Lint extends Single_Command_Lint {
-    def lint(tokens: List[Text.Info[Token]], report: Reporter): Option[Lint_Result]
-
-    def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] =
-      lint(command.tokens, report)
-  }
-
   /* Lints that are parsers
    * */
   abstract class Parser_Lint extends Single_Command_Lint with TokenParsers {

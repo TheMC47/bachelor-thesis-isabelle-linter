@@ -257,13 +257,13 @@ object Debug_Command extends Single_Command_Lint {
   }
 }
 
-object Axiomatization_With_Where extends Raw_Token_Stream_Lint {
+object Axiomatization_With_Where extends Single_Command_Lint {
 
   val name: String = "axiomatization_with_where"
   val severity: Severity.Level = Severity.HIGH
   val category: Category.Name = Category.maintenance
 
-  def lint(tokens: List[Text.Info[Token]], report: Reporter): Option[Lint_Result] = tokens match {
+  def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] = command.tokens match {
     case RToken(Token.Kind.COMMAND, "axiomatization", range) :: next =>
       next.dropWhile(_.info.source != "where") match {
         case xs @ (_ :: _) =>
