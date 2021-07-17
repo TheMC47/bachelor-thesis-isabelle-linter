@@ -109,7 +109,7 @@ object Lint_Store {
 
   private val bundle_store: Map[String, Bundle] = Map.empty
 
-  def bundle_register(bundle: Bundle): Unit =
+  def register_bundle(bundle: Bundle): Unit =
     bundle_store += ((bundle.name, bundle))
 
   def get_bundle(name: String): Option[Bundle] =
@@ -118,5 +118,5 @@ object Lint_Store {
   private val all_bundles =
     List(Bundle.isar, Bundle.no_diagnosis, Bundle.foundational, Bundle.pedantic, Bundle.default)
 
-  for (bundle <- all_bundles) bundle_register(bundle)
+  for (bundle <- all_bundles) register_bundle(bundle)
 }
