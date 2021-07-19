@@ -284,21 +284,16 @@ abstract class Illegal_Command_Lint(
     illegal_commands: List[String],
     lint_severity: Severity.Level,
     lint_category: Category.Name
-) extends Raw_Token_Stream_Lint {
+) extends Single_Command_Lint {
 
   val name: String = lint_name
   val severity: Severity.Level = lint_severity
   val category: Category.Name = lint_category
 
-  def lint(tokens: List[Text.Info[Token]], report: Reporter): Option[Lint_Result] = tokens match {
-    case head :: _ if (illegal_commands.contains(head.info.content)) =>
-      report(
-        message,
-        head.range,
-        Some(Edit(list_range(tokens.map(_.range)), "", Some("Remove invocation")))
-      )
-    case _ => None
-  }
+  def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] =
+    if (illegal_commands.contains(command.kind))
+      report(message, command.range, Some(Edit(command.range, "", Some("Remove invocation"))))
+    else None
 }
 
 object Unfinished_Proof
