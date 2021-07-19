@@ -49,11 +49,11 @@ class Linter_Variable[A](reporter: Reporter[A], cache: Boolean = true) {
     for (linter <- current_linter) {
       val bundles = space_explode(',', options.string("enabled_bundles"))
       val enabled_lints = space_explode(',', options.string("enabled_lints"))
-      val disabled_lins = space_explode(',', options.string("disabled_lints"))
+      val disabled_lints = space_explode(',', options.string("disabled_lints"))
       linter.configuration = Linter_Configuration.empty
         .add_bundles(bundles)
         .enable_lints(enabled_lints)
-        .disable_lints(disabled_lins)
+        .disable_lints(disabled_lints)
     }
   }
 }
