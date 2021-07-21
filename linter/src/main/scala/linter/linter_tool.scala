@@ -26,7 +26,7 @@ object Linter_Tool {
         skip_base = true
       )
 
-    val linter_variable = new Linter_Variable(XML_Lint_Reporter, cache = false)
+    val linter_variable = new Linter_Variable(Text_Reporter, cache = false)
     linter_variable.update(options + "linter=true")
 
     val linter = linter_variable.get.get
@@ -38,7 +38,7 @@ object Linter_Tool {
         progress.echo("Processing theory " + args.print_node + " ...")
         val snapshot = args.snapshot
         val report = linter.report_for_snapshot(snapshot)
-        progress.echo(YXML.string_of_body(report)) // TODO reporting
+        progress.echo(report)
       }))
 
     context.check_errors
