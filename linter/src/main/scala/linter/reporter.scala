@@ -8,6 +8,32 @@ abstract class Reporter[A] {
   def report_for_snapshot(lint_report: Linter.Lint_Report): A
 }
 
+object JSON_Reporter extends Reporter[JSON.T] {
+  def report_for_command(lint_report: Linter.Lint_Report, id: Document_ID.Command): JSON.T =
+    JSON.Object("results" -> lint_report.command_lints(id))
+
+  def report_for_snapshot(lint_report: Linter.Lint_Report): JSON.T =
+    JSON.Object("results" -> lint_report.results.map(report_result))
+
+  private def report_result(lint_result: Linter.Lint_Result): JSON.T = JSON.Object(
+    "name" -> lint_result.lint_name,
+    "severity" -> lint_result.severity.toString,
+    "start" -> lint_result.range.start,
+    "stop" -> lint_result.range.stop,
+    "commands" -> lint_result.commands.map(_.command.id),
+    "edit" -> lint_result.edit
+      .map({ edit =>
+        JSON.Object(
+          "start" -> edit.range.start,
+          "stop" -> edit.range.stop,
+          "replacement" -> edit.replacement,
+          "msg" -> edit.msg.getOrElse(null)
+        )
+      })
+      .getOrElse(null)
+  )
+
+}
 
 object Text_Reporter extends Reporter[String] {
   def report_for_command(lint_report: Linter.Lint_Report, id: Document_ID.Command): String =
