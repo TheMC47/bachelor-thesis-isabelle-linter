@@ -72,7 +72,8 @@ object Text_Reporter extends Reporter[String] {
         |
         |$snippet
         |
-        |  $edit""".stripMargin
+        |  $edit
+        |""".stripMargin
   }
 
   private def underline(source: String, range: Text.Range): String = {
