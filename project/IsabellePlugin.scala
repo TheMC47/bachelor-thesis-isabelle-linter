@@ -32,7 +32,6 @@ object IsabellePlugin extends AutoPlugin {
 
         // Get components and build jars
         runIsabelle(isabelleExecutable, projectDir, Seq("components", "-a"), logger)
-        runIsabelle(isabelleExecutable, projectDir, Seq("jedit", "-b"), logger)
 
         // Return jar
         (baseDirectory.value / "lib" / "classes" ** "*.jar").get()
