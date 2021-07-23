@@ -147,7 +147,7 @@ object Linter {
 
   object Severity extends Enumeration {
     type Level = Value
-    val LOW, MEDIUM, HIGH = Value
+    val Low, Medium, High = Value
   }
 
   object Category extends Enumeration {
