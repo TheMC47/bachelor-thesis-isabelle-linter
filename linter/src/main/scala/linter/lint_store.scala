@@ -89,6 +89,16 @@ object Lint_Store {
       )
     )
 
+    val afp = Bundle(
+      "afp",
+      Set(
+        Unfinished_Proof.name,
+        Bad_Style_Command.name,
+        Global_Attribute_On_Unnamed_Lemma.name,
+        Counter_Example_Finder.name
+      )
+    )
+
     val default = Bundle(
       "default",
       Set(
@@ -98,11 +108,12 @@ object Lint_Store {
         Low_Level_Apply_Chain.name,
         Axiomatization_With_Where.name,
         Bad_Style_Command.name,
-        Short_Name.name,
         Global_Attribute_On_Unnamed_Lemma.name,
         Lemma_Transforming_Attribute.name,
         Implicit_Rule.name,
-        Complex_Isar_Initial_Method.name
+        Complex_Isar_Initial_Method.name,
+        Global_Attribute_Changes.name,
+        Complex_Method.name
       )
     )
 
@@ -121,7 +132,15 @@ object Lint_Store {
     bundle_store.get(name)
 
   private val all_bundles =
-    List(Bundle.isar, Bundle.no_diagnosis, Bundle.foundational, Bundle.pedantic, Bundle.default, Bundle.all)
+    List(
+      Bundle.isar,
+      Bundle.no_diagnosis,
+      Bundle.foundational,
+      Bundle.pedantic,
+      Bundle.default,
+      Bundle.all,
+      Bundle.afp
+    )
 
   for (bundle <- all_bundles) register_bundle(bundle)
 }
