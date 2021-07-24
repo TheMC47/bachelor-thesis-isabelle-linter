@@ -109,25 +109,19 @@ object XML_Lint_Reporter extends Reporter[XML.Body] {
   def report_for_snapshot(lint_report: Linter.Lint_Report): XML.Body =
     report_lints(
       lint_report.results,
-      print_number = false,
-      print_location = true,
-      print_name = true
+      compact = false,
     )
 
   private def report_lints(
       lint_results: List[Linter.Lint_Result],
-      print_number: Boolean = true,
-      print_location: Boolean = false,
-      print_name: Boolean = false
+      compact: Boolean = true
   ): XML.Body =
     lint_results.zipWithIndex
       .map(ri =>
         report_lint(
           ri._1,
           ri._2,
-          print_number = print_number,
-          print_location = print_location,
-          print_name = print_name
+          compact = compact
         )
       )
       .flatten
@@ -135,9 +129,7 @@ object XML_Lint_Reporter extends Reporter[XML.Body] {
   private def report_lint(
       lint_result: Linter.Lint_Result,
       lint_number: Int = 0,
-      print_number: Boolean = true,
-      print_location: Boolean = false,
-      print_name: Boolean = false
+      compact: Boolean = true
   ): XML.Body = {
 
     val source = lint_result.commands.head.snapshot.node.source
@@ -145,25 +137,28 @@ object XML_Lint_Reporter extends Reporter[XML.Body] {
     def text_range_to_line(range: Text.Range): Line.Range = Line.Document(source).range(range)
 
     val location = when(
-      print_location,
+      !compact,
       text(s"At ${text_range_to_line(lint_result.range).start.print}:\n")
     )
 
     val message =
-      if (print_number)
+      if (compact)
         text(s" ${lint_number + 1}. ${lint_result.message}")
       else
         text(s" ${lint_result.message}")
 
-    val lint_name =
-      when(print_name, text(s" [lint name: ${lint_result.lint_name}]"))
+    val name =
+      when(!compact, text(s"\n    Name: ${lint_result.lint_name}"))
+
+    val severity =
+      when(!compact, text(s"\n    Severity: ${lint_result.severity}"))
 
     val edit = lint_result.edit match {
-      case Some(edit) => text(" Consider: ") ::: edit_markup(edit)
+      case Some(edit) => text("\n    Consider: ") ::: edit_markup(edit)
       case None       => Nil
     }
 
-    block(location ::: message ::: edit ::: lint_name)
+    block(location ::: message ::: edit ::: name ::: severity)
   }
 
   /* xml helpers */
