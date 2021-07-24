@@ -17,7 +17,6 @@ lazy val `linter` = project
   .settings(
     isabelleProject := isabelle,
     isabelleCommand := "lint",
-    crossTarget := baseDirectory.value / "../isabelle/src/Tools/jEdit/target/linter",
     libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2"
   )
   .enablePlugins(IsabelleToolPlugin) // Tool wrapper and run
