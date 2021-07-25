@@ -26,22 +26,6 @@ object TokenParsers extends TokenParsers {
 trait TokenParsers extends Parsers {
   type Elem = Text.Info[Token]
 
-  /* Utilities */
-
-  /* Like chainl1, but parses q at least once.
-   * */
-  def chainl2[T](p: => Parser[T], q: => Parser[(T, T) => T]): Parser[T] = chainl2(p, p, q)
-
-  def chainl2[T, U](
-      first: => Parser[T],
-      p: => Parser[U],
-      q: => Parser[(T, U) => T]
-  ): Parser[T] = first ~ rep1(q ~ p) ^^ { case x ~ xs =>
-    xs.foldLeft(x) { case (a, f ~ b) =>
-      f(a, b)
-    }
-  }
-
   def anyOf[T](ps: => Seq[Parser[T]]): Parser[T] = ps.reduce(_ | _)
 
   def is_atom(token: Token): Boolean = token.is_name ||
@@ -120,21 +104,26 @@ trait TokenParsers extends Parsers {
     )
     def pModifier: Parser[Text.Info[Method.Modifier]] = pTry | pRep1 | pRestrict
 
-    /* Combinators  and combined methods */
-    def pCombinator(sep: String, comb: Method.Combinator): Parser[Text.Info[Method]] =
-      chainl2[Text.Info[Method]](
-        pMethodInner,
-        pKeyword(sep) ^^^ { (left, right) =>
-          Text.Info(
-            Text.Range(left.range.start, right.range.stop),
-            Combined_Method(left, comb, right)
-          )
-        }
+    def pCombinator(
+        sep: String,
+        combinator: Method.Combinator,
+        nextPrecedence: Parser[Text.Info[Method]]
+    ) =
+      chainl1[Text.Info[Method]](
+        nextPrecedence,
+        pKeyword(sep)
+          ^^^ { (left, right) =>
+            Text.Info(
+              Text.Range(left.range.start, right.range.stop),
+              Combined_Method(left, combinator, right)
+            )
+          }
       )
 
-    def pAlt: Parser[Text.Info[Method]] = pCombinator("|", Method.Combinator.Alt)
-    def pSeq: Parser[Text.Info[Method]] = pCombinator(",", Method.Combinator.Seq)
-    def pStruct: Parser[Text.Info[Method]] = pCombinator(";", Method.Combinator.Struct)
+    def pAlt: Parser[Text.Info[Method]] =
+      pCombinator("|", Method.Combinator.Alt, pNameArgs | pParened(pMethods))
+    def pStruct: Parser[Text.Info[Method]] = pCombinator(";", Method.Combinator.Struct, pAlt)
+    def pSeq: Parser[Text.Info[Method]] = pCombinator(",", Method.Combinator.Seq, pStruct)
 
     /* Simple Methods */
     def pMethodArg: Parser[List[Elem]] = pArg { token =>
@@ -185,15 +174,7 @@ trait TokenParsers extends Parsers {
         addModifier(body, modifier)
       }
 
-    // Following the railroad diagram, some methods like `(rule exI; auto)` will not get parsed
-    // since `rule exI` is not inside parentheses. pMethod should only be used for parsing first
-    // level methods.
-    def pMethodInner: Parser[Text.Info[Method]] =
-      (pNameArgs | pParened(pMethods)) ~ pModifier.? ^^ { case body ~ modifier =>
-        addModifier(body, modifier)
-      }
-
-    def pMethods: Parser[Text.Info[Method]] = pAlt | pStruct | pSeq | pNameArgs | pMethod
+    def pMethods: Parser[Text.Info[Method]] = pSeq
   }
 
   /* Apply */
