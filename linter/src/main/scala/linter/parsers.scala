@@ -70,13 +70,26 @@ trait TokenParsers extends Parsers {
   /* Surrounded parsers */
   def pSurrounded[T, U](left: Parser[T], right: Parser[T])(center: Parser[U]): Parser[U] =
     left ~> center <~ right
+
+  def pSurroundedExtend[T, U](
+      left: Parser[Text.Info[T]],
+      right: Parser[Text.Info[T]]
+  )(center: Parser[Text.Info[U]]): Parser[Text.Info[U]] =
+    left ~ center ~ right ^^ { case Text.Info(lr, _) ~ Text.Info(_, c) ~ Text.Info(rr, _) =>
+      Text.Info(Text.Range(lr.start, rr.stop), c)
+    }
+
   def pOpenSqBracket: Parser[Elem] = pKeyword("[")
   def pClosedSqBracket: Parser[Elem] = pKeyword("]")
   def pSqBracketed[U]: Parser[U] => Parser[U] = pSurrounded(pOpenSqBracket, pClosedSqBracket)
+  def pSqBracketedExtend[U]: Parser[Text.Info[U]] => Parser[Text.Info[U]] =
+    pSurroundedExtend(pOpenSqBracket, pClosedSqBracket)
 
   def pOpenParen: Parser[Elem] = pKeyword("(")
   def pClosedParen: Parser[Elem] = pKeyword(")")
   def pParened[U]: Parser[U] => Parser[U] = pSurrounded(pOpenParen, pClosedParen)
+  def pParenedExtend[U](center: Parser[Text.Info[U]]): Parser[Text.Info[U]] =
+    pSurroundedExtend(pOpenParen, pClosedParen)(center)
 
   /* Simple elements */
 
@@ -102,7 +115,7 @@ trait TokenParsers extends Parsers {
     def pRep1: Parser[Text.Info[Method.Modifier]] = pKeyword("+") ^^ { case Text.Info(range, _) =>
       Text.Info(range, Method.Modifier.Rep1)
     }
-    def pRestrict: Parser[Text.Info[Method.Modifier]] = pSqBracketed(
+    def pRestrict: Parser[Text.Info[Method.Modifier]] = pSqBracketedExtend(
       pNat ^^ { case Text.Info(range, n) =>
         Text.Info(range, Method.Modifier.Restrict(n.content.toInt))
       }
