@@ -105,6 +105,11 @@ object Lint_Store {
         Complex_Isar_Initial_Method.name
       )
     )
+
+    val all = Bundle(
+      "all",
+      all_lints.map(_.name).toSet
+    )
   }
 
   private val bundle_store: Map[String, Bundle] = Map.empty
@@ -116,7 +121,7 @@ object Lint_Store {
     bundle_store.get(name)
 
   private val all_bundles =
-    List(Bundle.isar, Bundle.no_diagnosis, Bundle.foundational, Bundle.pedantic, Bundle.default)
+    List(Bundle.isar, Bundle.no_diagnosis, Bundle.foundational, Bundle.pedantic, Bundle.default, Bundle.all)
 
   for (bundle <- all_bundles) register_bundle(bundle)
 }
