@@ -63,9 +63,7 @@ trait TokenParsers extends Parsers {
 
   def pKeyword(name: String): Parser[Elem] = elem(name, _.info.is_keyword(name))
   def pIdent: Parser[Elem] = elem("ident", _.info.is_ident)
-  def pSymIdent: Parser[Elem] = elem("sym_ident", _.info.is_sym_ident)
   def pNat: Parser[Elem] = elem("nat", _.info.is_nat)
-  def pString: Parser[Elem] = elem("string", _.info.is_string)
 
   /* Surrounded parsers */
   def pSurrounded[T, U](left: Parser[T], right: Parser[T])(center: Parser[U]): Parser[U] =
@@ -205,11 +203,12 @@ trait TokenParsers extends Parsers {
   }
 
   /* Isar-Proof */
-  def pIsarProof: Parser[Text.Info[DocumentElement]] = pCommand("proof") ~ MethodParsers.pMethod.? ^^ {
-    case proofToken ~ Some(method) =>
-      Text.Info(Text.Range(proofToken.range.start, method.range.stop), Isar_Proof(Some(method)))
-    case proofToken ~ None => Text.Info(proofToken.range, Isar_Proof(None))
-  }
+  def pIsarProof: Parser[Text.Info[DocumentElement]] =
+    pCommand("proof") ~ MethodParsers.pMethod.? ^^ {
+      case proofToken ~ Some(method) =>
+        Text.Info(Text.Range(proofToken.range.start, method.range.stop), Isar_Proof(Some(method)))
+      case proofToken ~ None => Text.Info(proofToken.range, Isar_Proof(None))
+    }
 
   /* Attributes */
   def pAttribute: Parser[List[Elem]] = pIdent.*
@@ -217,7 +216,6 @@ trait TokenParsers extends Parsers {
   def pAttributes: Parser[List[List[Elem]]] =
     chainl1[List[List[Elem]]](pAttribute ^^ { List(_) }, pKeyword(",") ^^^ { _ ::: _ })
 
-  /* Putting things together.. */
   def pAny: Parser[Elem] = elem("any", _ => true)
 
   def tokenParser: Parser[Text.Info[DocumentElement]] = pApply | pIsarProof
