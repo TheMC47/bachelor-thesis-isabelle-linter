@@ -107,6 +107,17 @@ object Linter_Tool {
 
   }
 
+  def list_lints(options: Options, progress: Progress): Unit = {
+    val linter_variable = new Linter_Variable(Text_Reporter)
+    linter_variable.update(options + "linter=true")
+
+    val configuration = linter_variable.get.get.configuration
+
+    progress.echo(configuration.get_lints.map(_.name).sorted.mkString(", "))
+
+    sys.exit(0)
+  }
+
   /* Isabelle tool wrapper */
 
   val isabelle_tool =
@@ -126,7 +137,8 @@ object Linter_Tool {
         var options = Options.init()
         var verbose = false
         var exclude_sessions: List[String] = Nil
-        var mode: String = "text"
+        var mode = "text"
+        var list = false
 
         val getopts = Getopts(
           """
@@ -145,6 +157,7 @@ Usage: isabelle lint [OPTIONS] [SESSIONS ...]
     -v           verbose
     -x NAME      exclude session NAME and all descendants
     -r MODE      how to report results (either "text" or "json", default "text")
+    -l           list the enabled lints (does not run the linter)
 
   Lint isabelle theories.
 """,
@@ -159,7 +172,8 @@ Usage: isabelle lint [OPTIONS] [SESSIONS ...]
           "o:" -> (arg => options = options + arg),
           "v" -> (_ => verbose = true),
           "x:" -> (arg => exclude_sessions = exclude_sessions ::: List(arg)),
-          "r:" -> (arg => mode = arg)
+          "r:" -> (arg => mode = arg),
+          "l" -> (_ => list = true)
         )
 
         val sessions = getopts(args)
@@ -171,6 +185,10 @@ Usage: isabelle lint [OPTIONS] [SESSIONS ...]
         }
 
         val progress = new Console_Progress(verbose = verbose)
+
+        if (list)
+          list_lints(options, progress)
+
         progress.interrupt_handler {
           lint(
             options,
