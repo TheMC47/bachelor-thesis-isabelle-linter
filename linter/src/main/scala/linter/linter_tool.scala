@@ -166,7 +166,7 @@ Usage: isabelle lint [OPTIONS] [SESSIONS ...]
         val lint = mode match {
           case "text" => Lint_Text
           case "json" => new Lint_JSON()
-          case _ => error(s"Unrecognized reporting mode $mode")
+          case _      => error(s"Unrecognized reporting mode $mode")
         }
 
         val progress = new Console_Progress(verbose = verbose)
