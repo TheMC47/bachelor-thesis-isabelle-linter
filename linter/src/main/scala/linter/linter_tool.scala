@@ -23,17 +23,18 @@ object Linter_Tool {
     def apply(
         options: Options,
         logic: String,
+        verbose: Boolean = false,
         progress: Progress = new Progress,
         log: Logger = No_Logger,
         dirs: List[Path] = Nil,
         select_dirs: List[Path] = Nil,
         selection: Sessions.Selection = Sessions.Selection.empty
     ): Unit = {
-      // Use Dump to get a context...
+
       val context =
         Dump.Context(
           options,
-          progress = progress,
+          progress = if (verbose) progress else new Progress,
           dirs = dirs,
           select_dirs = select_dirs,
           selection = selection,
@@ -49,7 +50,7 @@ object Linter_Tool {
       context
         .sessions(logic, log = log)
         .foreach(_.process((args: Dump.Args) => {
-          progress.echo("Processing theory " + args.print_node + " ...")
+          progress.echo_if(verbose, "Processing theory " + args.print_node + " ...")
           process_args(linter, args, progress)
         }))
       context.check_errors
@@ -174,6 +175,7 @@ Usage: isabelle lint [OPTIONS] [SESSIONS ...]
           lint(
             options,
             logic,
+            verbose = verbose,
             progress = progress,
             dirs = dirs,
             select_dirs = select_dirs,
