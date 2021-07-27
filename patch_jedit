@@ -1,0 +1,29 @@
+#-*- shell-script -*- :mode=shellscript:
+TARGET="isabelle/src/Tools/jEdit/target/linter"
+JAR="linter/target/scala-2.13/linter-assembly-0.1.0-SNAPSHOT.jar"
+
+function usage()
+{
+  echo
+  echo "Usage: patch_jedit [OPTIONS]"
+  echo
+  echo "  Options are:"
+  echo "    -j FILE      specify an alternative jar for the linter"
+  echo "    -t DIR       specify an alternative target location for the jar"
+  echo
+  echo "  patch isabelle/jEdit to work with the linter"
+  echo
+  exit 1
+}
+
+while getopts j:t: flag
+do
+    case "${flag}" in
+        j) JAR=${OPTARG};;
+        t) TARGET=${OPTARG};;
+        *) usage
+    esac
+done
+
+mkdir -p "$TARGET"
+ln -s "$(realpath "$JAR")" "$TARGET/$(basename "$JAR")"
