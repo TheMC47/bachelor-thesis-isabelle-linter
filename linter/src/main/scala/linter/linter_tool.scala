@@ -24,6 +24,7 @@ object Linter_Tool {
         options: Options,
         logic: String,
         verbose: Boolean = false,
+        verbose_all: Boolean = false,
         progress: Progress = new Progress,
         log: Logger = No_Logger,
         dirs: List[Path] = Nil,
@@ -34,7 +35,7 @@ object Linter_Tool {
       val context =
         Dump.Context(
           options,
-          progress = if (verbose) progress else new Progress,
+          progress = if (verbose) new Console_Progress(verbose = verbose_all) else new Progress,
           dirs = dirs,
           select_dirs = select_dirs,
           selection = selection,
@@ -136,6 +137,7 @@ object Linter_Tool {
         var logic = Dump.default_logic
         var options = Options.init()
         var verbose = false
+        var verbose_all = false
         var exclude_sessions: List[String] = Nil
         var mode = "text"
         var list = false
@@ -155,6 +157,7 @@ Usage: isabelle lint [OPTIONS] [SESSIONS ...]
     -g NAME      select session group NAME
     -o OPTION    override Isabelle system OPTION (via NAME=VAL or NAME)
     -v           verbose
+    -V           verbose (General)
     -x NAME      exclude session NAME and all descendants
     -r MODE      how to report results (either "text" or "json", default "text")
     -l           list the enabled lints (does not run the linter)
@@ -171,6 +174,7 @@ Usage: isabelle lint [OPTIONS] [SESSIONS ...]
           "g:" -> (arg => session_groups = session_groups ::: List(arg)),
           "o:" -> (arg => options = options + arg),
           "v" -> (_ => verbose = true),
+          "V" -> (_ => verbose_all = true),
           "x:" -> (arg => exclude_sessions = exclude_sessions ::: List(arg)),
           "r:" -> (arg => mode = arg),
           "l" -> (_ => list = true)
@@ -194,6 +198,7 @@ Usage: isabelle lint [OPTIONS] [SESSIONS ...]
             options,
             logic,
             verbose = verbose,
+            verbose_all = verbose_all,
             progress = progress,
             dirs = dirs,
             select_dirs = select_dirs,
