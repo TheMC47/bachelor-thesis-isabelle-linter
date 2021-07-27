@@ -101,7 +101,11 @@ object Linter {
   ) {
     if (commands.isEmpty)
       error("Expected at least one command.")
-    val node_name: Document.Node.Name = commands.head.node_name
+    val node = commands.head.snapshot.node
+
+    lazy val line_range =
+      Line.Document(node.source).range(range)
+
   }
 
   object Lint_Result {

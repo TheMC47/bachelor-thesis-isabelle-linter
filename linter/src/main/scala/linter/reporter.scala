@@ -18,14 +18,16 @@ object JSON_Reporter extends Reporter[JSON.T] {
   private def report_result(lint_result: Linter.Lint_Result): JSON.T = JSON.Object(
     "name" -> lint_result.lint_name,
     "severity" -> lint_result.severity.toString,
-    "start" -> lint_result.range.start,
-    "stop" -> lint_result.range.stop,
+    "startOffset" -> lint_result.range.start,
+    "stopOffset" -> lint_result.range.stop,
+    "startPosition" -> lint_result.line_range.start.print,
+    "stopPosition" -> lint_result.line_range.stop.print,
     "commands" -> lint_result.commands.map(_.command.id),
     "edit" -> lint_result.edit
       .map({ edit =>
         JSON.Object(
-          "start" -> edit.range.start,
-          "stop" -> edit.range.stop,
+          "startOffset" -> edit.range.start,
+          "stopOffset" -> edit.range.stop,
           "replacement" -> edit.replacement,
           "msg" -> edit.msg.getOrElse(null)
         )
@@ -43,18 +45,16 @@ object Text_Reporter extends Reporter[String] {
     report_results(lint_report.results)
 
   private def report_results(lint_results: List[Linter.Lint_Result]): String =
-    lint_results.headOption match {
-      case Some(head) =>
-        val node = head.commands.head.snapshot.node
-        lint_results.map(report_result(_, node)).mkString("\n" + "=" * 30 + "\n")
-      case None => ""
-    }
+    lint_results.map(report_result _).mkString("\n" + "=" * 30 + "\n")
 
-  private def report_result(lint_result: Linter.Lint_Result, node: Document.Node): String = {
+  private def report_result(lint_result: Linter.Lint_Result): String = {
     val commands_range = Linter.list_range(lint_result.commands.map(_.range))
-    val position = Line.Document(node.source).position(lint_result.range.start)
+    val position = lint_result.line_range.start
     val commands_source =
-      node.command_iterator(commands_range).map({ case (cmd, _) => cmd.source }).mkString
+      lint_result.node
+        .command_iterator(commands_range)
+        .map({ case (cmd, _) => cmd.source })
+        .mkString
 
     val snippet =
       if (lint_result.range contains commands_range)
@@ -110,7 +110,7 @@ object XML_Lint_Reporter extends Reporter[XML.Body] {
   def report_for_snapshot(lint_report: Linter.Lint_Report): XML.Body =
     report_lints(
       lint_report.results,
-      compact = false,
+      compact = false
     )
 
   private def report_lints(
@@ -133,13 +133,9 @@ object XML_Lint_Reporter extends Reporter[XML.Body] {
       compact: Boolean = true
   ): XML.Body = {
 
-    val source = lint_result.commands.head.snapshot.node.source
-
-    def text_range_to_line(range: Text.Range): Line.Range = Line.Document(source).range(range)
-
     val location = when(
       !compact,
-      text(s"At ${text_range_to_line(lint_result.range).start.print}:\n")
+      text(s"At ${lint_result.line_range.start.print}:\n")
     )
 
     val message =
