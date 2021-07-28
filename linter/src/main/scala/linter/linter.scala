@@ -73,7 +73,7 @@ object Linter {
      * Try to map token streams into something that has more structure.
      * */
 
-    lazy val parsed: Text.Info[DocumentElement] =
+    lazy val ast_node: Text.Info[ASTNode] =
       TokenParsers.parse(TokenParsers.tokenParser, tokens) match {
         case TokenParsers.Success(result, TokenParsers.TokenReader(Nil, _)) => result
         case TokenParsers.Success(_, next) =>
@@ -83,7 +83,6 @@ object Linter {
 
   }
 
-  abstract class DocumentElement // Refined in ast.scala
 
   /* ==== Linting ====
    * A Lint needs to define a function, lint, that takes a Parsed_Command and optionally returns a
@@ -245,9 +244,7 @@ object Linter {
       }
   }
 
-  /* Lints that use the parsed document structure
-   * */
-  abstract class Structure_Lint extends Single_Command_Lint {
+  abstract class AST_Lint extends Single_Command_Lint {
 
     def lint_apply(method: Text.Info[Method], report: Reporter): Option[Lint_Result] = None
 
@@ -260,8 +257,8 @@ object Linter {
         case Isar_Proof(method) => lint_isar_proof(method, report)
       }
 
-    def lint_document_element(
-        elem: Text.Info[DocumentElement],
+    def lint_ast_node(
+        elem: Text.Info[ASTNode],
         report: Reporter
     ): Option[Lint_Result] =
       elem.info match {
@@ -270,7 +267,7 @@ object Linter {
       }
 
     def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] =
-      lint_document_element(command.parsed, report)
+      lint_ast_node(command.ast_node, report)
 
   }
 }

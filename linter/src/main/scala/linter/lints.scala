@@ -99,7 +99,7 @@ object Unrestricted_Auto extends Proper_Commands_Lint {
     case _ => false
   }
 
-  private def is_unrestricted_auto(element: DocumentElement): Boolean = element match {
+  private def is_unrestricted_auto(element: ASTNode): Boolean = element match {
     case Apply(method) => is_unrestricted_auto__method(method.info)
     case _             => false
   }
@@ -117,7 +117,7 @@ object Unrestricted_Auto extends Proper_Commands_Lint {
   def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
     commands match {
       case (apply @ Parsed_Command("apply")) :: next_command :: next
-          if !is_terminal(next_command) && is_unrestricted_auto(apply.parsed.info) =>
+          if !is_terminal(next_command) && is_unrestricted_auto(apply.ast_node.info) =>
         lint_proper(next_command :: next, report_lint(apply, report))
       case _ :: next => lint_proper(next, report)
       case Nil       => report
@@ -136,7 +136,7 @@ object Low_Level_Apply_Chain extends Proper_Commands_Lint {
     case _ => false
   }
 
-  private def is_low_level_apply(command: Parsed_Command): Boolean = command.parsed.info match {
+  private def is_low_level_apply(command: Parsed_Command): Boolean = command.ast_node.info match {
     case Apply(method) => is_low_level_method(method.info)
     case _             => false
   }
@@ -472,7 +472,7 @@ object Lemma_Transforming_Attribute extends Parser_Lint {
     }
 }
 
-object Implicit_Rule extends Structure_Lint {
+object Implicit_Rule extends AST_Lint {
 
   val name: String = "implicit_rule"
   val severity: Severity.Level = Severity.Medium
@@ -488,7 +488,7 @@ object Implicit_Rule extends Structure_Lint {
     }
 }
 
-object Complex_Isar_Initial_Method extends Structure_Lint {
+object Complex_Isar_Initial_Method extends AST_Lint {
 
   val name: String = "complex_isar_initial_method"
   val severity: Severity.Level = Severity.Medium
@@ -509,7 +509,7 @@ object Complex_Isar_Initial_Method extends Structure_Lint {
     } yield report("Keep initial proof methods simple.", range, None).get
 }
 
-object Force_Failure extends Structure_Lint {
+object Force_Failure extends AST_Lint {
   val name: String = "force_failure"
   val severity: Severity.Level = Severity.Low
   val category: Category.Name = Category.maintenance
@@ -522,7 +522,7 @@ object Force_Failure extends Structure_Lint {
     }
 }
 
-object Auto_Structural_Composition extends Structure_Lint {
+object Auto_Structural_Composition extends AST_Lint {
   val name: String = "auto_structural_composition"
   val severity: Severity.Level = Severity.Low
   val category: Category.Name = Category.maintenance
@@ -544,7 +544,7 @@ object Auto_Structural_Composition extends Structure_Lint {
     }
 }
 
-object Complex_Method extends Structure_Lint {
+object Complex_Method extends AST_Lint {
 
   val name: String = "complex_method"
   val severity: Severity.Level = Severity.Medium
@@ -578,13 +578,13 @@ object Complex_Method extends Structure_Lint {
     (if (allow_modifiers) has_complex_modifiers(method) else has_modifiers(method)) ||
       has_many_combinators(method)
 
-  def is_complex(element: DocumentElement): Boolean = element match {
+  def is_complex(element: ASTNode): Boolean = element match {
     case Apply(method)            => is_complex_method(method.info)
     case Isar_Proof(Some(method)) => is_complex_method(method.info)
     case _                        => false
   }
 
-  def is_complex(command: Parsed_Command): Boolean = is_complex(command.parsed.info)
+  def is_complex(command: Parsed_Command): Boolean = is_complex(command.ast_node.info)
 
   override def lint_apply(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
     if (is_complex_method(method.info)) report(message, method.range, None) else None
@@ -600,14 +600,14 @@ object Complex_Method extends Structure_Lint {
 
 }
 
-object Print_Structure extends Structure_Lint {
+object Print_Structure extends AST_Lint {
 
   val name: String = "print_structure"
   val severity: Severity.Level = Severity.Low
   val category: Category.Name = Category.maintenance
 
-  override def lint_document_element(
-      elem: Text.Info[DocumentElement],
+  override def lint_ast_node(
+      elem: Text.Info[ASTNode],
       report: Reporter
   ): Option[Lint_Result] =
     report(s"Parsed: ${elem.info}", elem.range, None)

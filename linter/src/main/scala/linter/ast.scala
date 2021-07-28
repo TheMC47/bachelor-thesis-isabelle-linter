@@ -1,20 +1,17 @@
 package linter
 
 import isabelle._
-import Linter._
 
-abstract class Proof extends DocumentElement
+abstract class ASTNode
+abstract class Proof extends ASTNode
 
 object Method {
-  /* Modifiers */
   trait Modifier
   object Modifier {
     object Try extends Modifier // ?
     object Rep1 extends Modifier // +
     case class Restrict(val n: Int) extends Modifier // [n]
   }
-
-  /* Combinators */
 
   trait Combinator
   object Combinator {
@@ -25,7 +22,7 @@ object Method {
 
 }
 
-abstract class Method extends DocumentElement
+abstract class Method extends ASTNode
 
 case class Simple_Method(
     val name: Text.Info[Token],
@@ -43,4 +40,4 @@ case class Combined_Method(
 case class Apply(val method: Text.Info[Method]) extends Proof
 case class Isar_Proof(val method: Option[Text.Info[Method]]) extends Proof
 
-case class Failed(val string: String) extends DocumentElement
+case class Failed(val string: String) extends ASTNode
