@@ -153,19 +153,9 @@ object Linter {
     val Low, Medium, High = Value
   }
 
-  object Category extends Enumeration {
-    type Name = Value
-    val readability, maintenance, style = Value
-  }
-
   sealed trait Lint {
-
-    // The name of the lint. snake_case
     val name: String
-    // Severity of the lint
     val severity: Severity.Level
-    // Category
-    val category: Category.Name
 
     def lint(commands: List[Parsed_Command], report: Lint_Report): Lint_Report
 

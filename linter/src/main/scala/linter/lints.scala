@@ -9,7 +9,6 @@ object Apply_Isar_Switch extends Proper_Commands_Lint {
 
   val name = "apply_isar_switch"
   val severity: Severity.Level = Severity.Medium
-  val category: Category.Name = Category.readability
 
   @tailrec
   def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
@@ -33,7 +32,6 @@ object Use_By extends Proper_Commands_Lint with TokenParsers {
 
   val name: String = "use_by"
   val severity: Severity.Level = Severity.Low
-  val category: Category.Name = Category.style
 
   def pRemoveApply: Parser[String] = (pCommand("apply") ~ pSpace.?) ~> pAny.* ^^ mkString
 
@@ -83,7 +81,6 @@ object Use_By extends Proper_Commands_Lint with TokenParsers {
 object Unrestricted_Auto extends Proper_Commands_Lint {
   val name: String = "unrestricted_auto"
   val severity: Severity.Level = Severity.High
-  val category: Category.Name = Category.maintenance
 
   private def is_terminal(command: Parsed_Command): Boolean =
     List("sorry", "oops", "done", "\\<proof>").contains(command.kind)
@@ -128,7 +125,6 @@ object Low_Level_Apply_Chain extends Proper_Commands_Lint {
 
   val name: String = "low_level_apply_chain"
   val severity: Severity.Level = Severity.Low
-  val category: Category.Name = Category.style
 
   private def is_low_level_method(method: Method): Boolean = method match {
     case Simple_Method(name, modifiers, args) =>
@@ -167,7 +163,6 @@ object Global_Attribute_Changes extends Proper_Commands_Lint with TokenParsers {
 
   val name: String = "global_attribute_changes"
   val severity: Severity.Level = Severity.Low
-  val category: Category.Name = Category.style
 
   type Declaration = (String, List[String]) // Identifier, attribute list without whitespaces
 
@@ -237,7 +232,6 @@ object Use_Isar extends Single_Command_Lint {
 
   val name: String = "use_isar"
   val severity: Severity.Level = Severity.Low
-  val category: Category.Name = Category.style
 
   def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] = command match {
     case (c @ Parsed_Command("apply")) =>
@@ -250,7 +244,6 @@ object Debug_Command extends Single_Command_Lint {
 
   val name: String = "debug_command"
   val severity: Severity.Level = Severity.Low
-  val category: Category.Name = Category.maintenance
 
   def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] = {
     report(s"${command.tokens}", command.range, None)
@@ -261,7 +254,6 @@ object Axiomatization_With_Where extends Single_Command_Lint {
 
   val name: String = "axiomatization_with_where"
   val severity: Severity.Level = Severity.High
-  val category: Category.Name = Category.maintenance
 
   def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] = command.tokens match {
     case RToken(Token.Kind.COMMAND, "axiomatization", range) :: next =>
@@ -283,12 +275,10 @@ abstract class Illegal_Command_Lint(
     lint_name: String,
     illegal_commands: List[String],
     lint_severity: Severity.Level,
-    lint_category: Category.Name
 ) extends Single_Command_Lint {
 
   val name: String = lint_name
   val severity: Severity.Level = lint_severity
-  val category: Category.Name = lint_category
 
   def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] =
     if (illegal_commands.contains(command.kind))
@@ -302,7 +292,6 @@ object Unfinished_Proof
       "unfinished_proof",
       List("sorry", "oops", "\\<proof>"),
       Severity.High,
-      Category.maintenance
     )
 
 object Proof_Finder
@@ -316,7 +305,6 @@ object Proof_Finder
         "try0"
       ),
       Severity.High,
-      Category.maintenance
     )
 
 object Counter_Example_Finder
@@ -329,7 +317,6 @@ object Counter_Example_Finder
         "quickcheck"
       ),
       Severity.High,
-      Category.maintenance
     )
 
 object Bad_Style_Command
@@ -338,7 +325,6 @@ object Bad_Style_Command
       "bad_style_command",
       List("back", "apply_end"),
       Severity.Medium,
-      Category.maintenance
     )
 
 object Diagnostic_Command
@@ -412,14 +398,12 @@ object Diagnostic_Command
         "typ"
       ),
       Severity.Low,
-      Category.maintenance
     )
 
 object Short_Name extends Parser_Lint {
 
   val name: String = "short_name"
   val severity: Severity.Level = Severity.Low
-  val category: Category.Name = Category.style
 
   override def parser(report: Reporter): Parser[Some[Lint_Result]] =
     pCommand("fun", "definition") ~> elem("ident", _.info.content.size < 2) ^^ {
@@ -432,7 +416,6 @@ object Global_Attribute_On_Unnamed_Lemma extends Parser_Lint {
 
   val name: String = "global_attribute_on_unnamed_lemma"
   val severity: Severity.Level = Severity.High
-  val category: Category.Name = Category.maintenance
 
   private def simp_or_cong(attr: List[Elem]): Boolean = attr match {
     case head :: _ => List("simp", "cong").contains(head.info.content)
@@ -455,7 +438,6 @@ object Lemma_Transforming_Attribute extends Parser_Lint {
 
   val name: String = "lemma_transforming_attribute"
   val severity: Severity.Level = Severity.Medium
-  val category: Category.Name = Category.maintenance
 
   private def simp_or_cong(attr: List[Elem]): Boolean = attr match {
     case head :: _ => List("simplified", "rule_format").contains(head.info.content)
@@ -476,7 +458,6 @@ object Implicit_Rule extends AST_Lint {
 
   val name: String = "implicit_rule"
   val severity: Severity.Level = Severity.Medium
-  val category: Category.Name = Category.maintenance
 
   override def lint_apply(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
     method.info match {
@@ -492,7 +473,6 @@ object Complex_Isar_Initial_Method extends AST_Lint {
 
   val name: String = "complex_isar_initial_method"
   val severity: Severity.Level = Severity.Medium
-  val category: Category.Name = Category.maintenance
 
   def has_auto(method: Method): Boolean = method match {
     case Simple_Method(RToken(_, name, _), _, _) => name == "auto"
@@ -512,7 +492,6 @@ object Complex_Isar_Initial_Method extends AST_Lint {
 object Force_Failure extends AST_Lint {
   val name: String = "force_failure"
   val severity: Severity.Level = Severity.Low
-  val category: Category.Name = Category.maintenance
 
   override def lint_apply(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
     method.info match {
@@ -525,7 +504,6 @@ object Force_Failure extends AST_Lint {
 object Auto_Structural_Composition extends AST_Lint {
   val name: String = "auto_structural_composition"
   val severity: Severity.Level = Severity.Low
-  val category: Category.Name = Category.maintenance
 
   private def has_auto(method: Method): Boolean = method match {
     case Simple_Method(name, modifiers, args) => name.info.source == "auto"
@@ -548,7 +526,6 @@ object Complex_Method extends AST_Lint {
 
   val name: String = "complex_method"
   val severity: Severity.Level = Severity.Medium
-  val category: Category.Name = Category.readability
 
   val modifier_length: Int = 1
   val combinator_threshold: Int = 4
@@ -604,7 +581,6 @@ object Print_Structure extends AST_Lint {
 
   val name: String = "print_structure"
   val severity: Severity.Level = Severity.Low
-  val category: Category.Name = Category.maintenance
 
   override def lint_ast_node(
       elem: Text.Info[ASTNode],
