@@ -1,5 +1,5 @@
 # Isabelle linter
-MWE for an `sbt` setup of an external Isabelle component, with local user home.
+A linter for isabelle
 
 ## How to use
 
