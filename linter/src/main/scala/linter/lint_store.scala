@@ -43,15 +43,15 @@ object Lint_Store {
   case class Bundle(val name: String, val lint_names: Set[String])
 
   object Bundle {
-    /* basic bundles */
-    val isar = Bundle(
-      "isar",
+
+    val pedantic = Bundle(
+      "pedantic",
       Set(
-        Apply_Isar_Switch.name,
-        Use_By.name,
-        Use_Isar.name,
         Low_Level_Apply_Chain.name,
-        Complex_Isar_Initial_Method.name
+        Use_Isar.name,
+        Short_Name.name,
+        Force_Failure.name,
+        Auto_Structural_Composition.name
       )
     )
 
@@ -69,33 +69,32 @@ object Lint_Store {
       "foundational",
       Set(
         Apply_Isar_Switch.name,
-        Use_By.name,
-        Unrestricted_Auto.name,
         Bad_Style_Command.name,
+        Complex_Isar_Initial_Method.name,
+        Complex_Method.name,
+        Global_Attribute_Changes.name,
         Global_Attribute_On_Unnamed_Lemma.name,
+        Lemma_Transforming_Attribute.name,
         Implicit_Rule.name,
-        Complex_Isar_Initial_Method.name
-      )
-    )
-
-    val pedantic = Bundle(
-      "pedantic",
-      Set(
-        Low_Level_Apply_Chain.name,
-        Use_Isar.name,
-        Short_Name.name,
-        Force_Failure.name,
-        Auto_Structural_Composition.name
+        Unrestricted_Auto.name,
+        Use_By.name
       )
     )
 
     val afp = Bundle(
       "afp",
       Set(
-        Unfinished_Proof.name,
+        Apply_Isar_Switch.name,
         Bad_Style_Command.name,
+        Complex_Isar_Initial_Method.name,
+        Counter_Example_Finder.name,
+        Complex_Method.name,
+        Global_Attribute_Changes.name,
         Global_Attribute_On_Unnamed_Lemma.name,
-        Counter_Example_Finder.name
+        Lemma_Transforming_Attribute.name,
+        Implicit_Rule.name,
+        Unrestricted_Auto.name,
+        Use_By.name
       )
     )
 
@@ -133,7 +132,6 @@ object Lint_Store {
 
   private val all_bundles =
     List(
-      Bundle.isar,
       Bundle.no_diagnosis,
       Bundle.foundational,
       Bundle.pedantic,
