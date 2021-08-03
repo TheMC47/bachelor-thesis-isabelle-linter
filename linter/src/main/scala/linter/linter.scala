@@ -1,8 +1,7 @@
 package linter
 
-import java.io.PrintWriter
-
 import isabelle._
+
 import scala.collection.immutable
 
 object Linter {
@@ -50,8 +49,6 @@ object Linter {
 
     val range: Text.Range = command.range + offset
 
-    /* Tokens with position */
-
     def generate_positions(
         tokens: List[Token],
         start_offset: Text.Offset
@@ -69,10 +66,6 @@ object Linter {
     val tokens: List[Text.Info[Token]] =
       generate_positions(command.span.content, offset)
 
-    /* ==== Parsing ====
-     * Try to map token streams into something that has more structure.
-     * */
-
     lazy val ast_node: Text.Info[ASTNode] =
       TokenParsers.parse(TokenParsers.tokenParser, tokens) match {
         case TokenParsers.Success(result, TokenParsers.TokenReader(Nil, _)) => result
@@ -82,13 +75,6 @@ object Linter {
       }
 
   }
-
-
-  /* ==== Linting ====
-   * A Lint needs to define a function, lint, that takes a Parsed_Command and optionally returns a
-   * Lint_Result. This is further refined by other abstract classes, that provide interafces that
-   * are more convenient.
-   * */
 
   case class Lint_Result(
       val lint_name: String,
@@ -221,8 +207,6 @@ object Linter {
     def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result]
   }
 
-  /* Lints that are parsers
-   * */
   abstract class Parser_Lint extends Single_Command_Lint with TokenParsers {
 
     def parser(report: Reporter): Parser[Some[Lint_Result]]
