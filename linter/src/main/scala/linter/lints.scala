@@ -33,30 +33,34 @@ object Use_By extends Proper_Commands_Lint with TokenParsers {
   val name: String = "use_by"
   val severity: Severity.Level = Severity.Low
 
-  def pRemoveApply: Parser[String] = (pCommand("apply") ~ pSpace.?) ~> pAny.* ^^ mkString
+  private def removeApply: Parser[String] = (pCommand("apply") ~ pSpace.?) ~> pAny.* ^^ mkString
 
-  private def edits(apply_script: List[Parsed_Command]): String =
+  private def gen_replacement(apply_script: List[Parsed_Command]): Option[String] =
     apply_script match {
-      case apply1 :: apply2 :: done :: Nil => {
-        val first = doParseTransform(pRemoveApply)(apply1)
-        val second = doParseTransform(pRemoveApply)(apply2)
-        s"by $first $second"
-      }
-      case apply :: done :: Nil => {
-        val no_paren = doParseTransform(pRemoveApply)(apply)
-        s"by $no_paren"
-      }
-      case _ => error("Expected two or three commands")
+      case apply1 :: apply2 :: done :: Nil =>
+        for {
+          method1 <- tryTransform(removeApply, apply1)
+          method2 <- tryTransform(removeApply, apply2)
+        } yield s"by $method1 $method2"
+      case apply :: done :: Nil =>
+        for {
+          method <- tryTransform(removeApply, apply)
+        } yield s"by $method"
+      case _ => None
     }
 
-  private def report_lint(apply_script: List[Parsed_Command], report: Lint_Report): Lint_Report =
-    add_result(
+  private def report_lint(apply_script: List[Parsed_Command], report: Lint_Report): Lint_Report = {
+    val new_report = for {
+      replacement <- gen_replacement(apply_script)
+    } yield add_result(
       """Use "by" instead of a short apply-script.""",
       list_range(apply_script.map(_.range)),
-      Some(Edit(list_range(apply_script map (_.range)), edits(apply_script))),
+      Some(Edit(list_range(apply_script map (_.range)), replacement)),
       apply_script,
       report
     )
+    new_report.getOrElse(report)
+  }
 
   @tailrec
   def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
@@ -274,7 +278,7 @@ abstract class Illegal_Command_Lint(
     message: String,
     lint_name: String,
     illegal_commands: List[String],
-    lint_severity: Severity.Level,
+    lint_severity: Severity.Level
 ) extends Single_Command_Lint {
 
   val name: String = lint_name
@@ -291,7 +295,7 @@ object Unfinished_Proof
       "Consider finishing the proof.",
       "unfinished_proof",
       List("sorry", "oops", "\\<proof>"),
-      Severity.High,
+      Severity.High
     )
 
 object Proof_Finder
@@ -304,7 +308,7 @@ object Proof_Finder
         "try",
         "try0"
       ),
-      Severity.High,
+      Severity.High
     )
 
 object Counter_Example_Finder
@@ -316,7 +320,7 @@ object Counter_Example_Finder
         "nunchaku",
         "quickcheck"
       ),
-      Severity.High,
+      Severity.High
     )
 
 object Bad_Style_Command
@@ -324,7 +328,7 @@ object Bad_Style_Command
       "Bad style command.",
       "bad_style_command",
       List("back", "apply_end"),
-      Severity.Medium,
+      Severity.Medium
     )
 
 object Diagnostic_Command
@@ -397,7 +401,7 @@ object Diagnostic_Command
         "thm",
         "typ"
       ),
-      Severity.Low,
+      Severity.Low
     )
 
 object Short_Name extends Parser_Lint {
