@@ -201,14 +201,12 @@ trait TokenParsers extends Parsers {
 
   def tokenParser: Parser[Text.Info[ASTNode]] = pApply | pIsarProof
 
-  def doParseTransform(p: Parser[String])(command: Parsed_Command): String =
-    parse(p, command.tokens, true) match {
-      case Success(result, next) => result
-      case n: NoSuccess          => error(s"Failed: $n \n ${command.tokens}")
-    }
-
-  def tryTransform[T](p: Parser[T], command: Parsed_Command): Option[T] =
-    parse(p, command.tokens) match {
+  def tryTransform[T](
+      p: Parser[T],
+      command: Parsed_Command,
+      keepSpaces: Boolean = false
+  ): Option[T] =
+    parse(p, command.tokens, keepSpaces) match {
       case Success(result, next) => Some(result)
       case n: NoSuccess          => None
     }

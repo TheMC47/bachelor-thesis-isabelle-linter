@@ -39,12 +39,12 @@ object Use_By extends Proper_Commands_Lint with TokenParsers {
     apply_script match {
       case apply1 :: apply2 :: done :: Nil =>
         for {
-          method1 <- tryTransform(removeApply, apply1)
-          method2 <- tryTransform(removeApply, apply2)
+          method1 <- tryTransform(removeApply, apply1, true)
+          method2 <- tryTransform(removeApply, apply2, true)
         } yield s"by $method1 $method2"
       case apply :: done :: Nil =>
         for {
-          method <- tryTransform(removeApply, apply)
+          method <- tryTransform(removeApply, apply, true)
         } yield s"by $method"
       case _ => None
     }
