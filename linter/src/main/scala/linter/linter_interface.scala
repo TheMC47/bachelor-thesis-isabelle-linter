@@ -19,9 +19,11 @@ class Linter_Interface[A](reporter: Reporter[A], cache: Boolean) {
     }
   }
 
+  def do_lint(snapshot: Document.Snapshot): Unit =
+    update_cache(snapshot)
+
   def lint_report(snapshot: Document.Snapshot): Linter.Lint_Report = {
     if (cache) {
-      update_cache(snapshot)
       (for { (_, report) <- lint_cache.get(snapshot.node_name) } yield report)
         .getOrElse(Linter.Lint_Report.empty)
     } else Linter.lint(snapshot, configuration)
