@@ -108,8 +108,14 @@ object Linter_Tool {
         linter: Linter_Interface[String],
         args: Dump.Args,
         progress: Progress
-    ): Unit =
-      progress.echo(linter.report_for_snapshot(args.snapshot))
+    ): Unit = {
+      progress.echo(args.print_node + ":")
+      val report = linter.report_for_snapshot(args.snapshot)
+      if (report.isEmpty)
+        progress.echo("No lints found.")
+      else
+        progress.echo(report)
+    }
 
   }
 
