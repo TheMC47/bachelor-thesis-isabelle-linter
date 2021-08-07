@@ -137,6 +137,9 @@ object Linter {
   object Severity extends Enumeration {
     type Level = Value
     val Low, Medium, High = Value
+
+    def unapply(s: String): Option[Level] =
+      values.find(_.toString == s)
   }
 
   sealed trait Lint {
