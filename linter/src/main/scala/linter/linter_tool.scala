@@ -96,6 +96,7 @@ object Linter_Tool {
   }
 
   object Lint_Text extends Lint_CLI[String] {
+
     override def get_linter_variable: Linter_Variable[String] =
       new Linter_Variable(Text_Reporter, cache = false)
 
@@ -108,13 +109,43 @@ object Linter_Tool {
 
   }
 
+  class Lint_XML extends Lint_CLI[XML.Body] {
+
+    val reports = new ListBuffer[XML.Tree]()
+
+    override def get_linter_variable: Linter_Variable[XML.Body] =
+      new Linter_Variable(XML_Lint_Reporter, cache = false)
+
+    override def process_args(
+        linter: Linter_Interface[XML.Body],
+        args: Dump.Args,
+        progress: Progress
+    ): Unit = {
+      val start_date = Date.now()
+      val report = linter.report_for_snapshot(args.snapshot)
+      val end_date = Date.now()
+      val timing = end_date.time - start_date.time
+      reports += XML.Elem(
+        Markup("report", Linter_Markup.Theory(args.print_node) ::: Linter_Markup.Timing(timing.ms)),
+        report
+      )
+    }
+
+    override def process_end(
+        progress: Progress
+    ): Unit = {
+      val xml_reports = XML.Elem(Markup("reports", Nil), reports.toList)
+      progress.echo(XML.string_of_tree(xml_reports))
+    }
+  }
+
   def list_lints(options: Options, progress: Progress): Unit = {
     val linter_variable = new Linter_Variable(Text_Reporter)
     linter_variable.update(options + "linter=true")
 
     val configuration = linter_variable.get.get.configuration
 
-    progress.echo(configuration.get_lints.map(_.name).sorted.mkString(", "))
+    progress.echo(commas(configuration.get_lints.map(_.name).sorted))
 
     sys.exit(0)
   }
@@ -159,7 +190,7 @@ Usage: isabelle lint [OPTIONS] [SESSIONS ...]
     -v           verbose
     -V           verbose (General)
     -x NAME      exclude session NAME and all descendants
-    -r MODE      how to report results (either "text" or "json", default "text")
+    -r MODE      how to report results (either "text", "json" or "xml", default "text")
     -l           list the enabled lints (does not run the linter)
 
   Lint isabelle theories.
@@ -185,6 +216,7 @@ Usage: isabelle lint [OPTIONS] [SESSIONS ...]
         val lint = mode match {
           case "text" => Lint_Text
           case "json" => new Lint_JSON()
+          case "xml"  => new Lint_XML()
           case _      => error(s"Unrecognized reporting mode $mode")
         }
 
