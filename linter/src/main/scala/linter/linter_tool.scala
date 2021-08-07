@@ -23,12 +23,12 @@ object Linter_Tool {
     def apply(
         options: Options,
         logic: String,
+        session_name: String,
         verbose: Boolean = false,
         verbose_all: Boolean = false,
         progress: Progress = new Progress,
         log: Logger = No_Logger,
         dirs: List[Path] = Nil,
-        select_dirs: List[Path] = Nil,
         selection: Sessions.Selection = Sessions.Selection.empty
     ): Unit = {
 
@@ -37,7 +37,6 @@ object Linter_Tool {
           options,
           progress = if (verbose) new Console_Progress(verbose = verbose_all) else new Progress,
           dirs = dirs,
-          select_dirs = select_dirs,
           selection = selection,
           skip_base = true
         )
@@ -52,7 +51,12 @@ object Linter_Tool {
         .sessions(logic, log = log)
         .foreach(_.process((args: Dump.Args) => {
           progress.echo_if(verbose, "Processing theory " + args.print_node + " ...")
-          process_args(linter, args, progress)
+          val base_session_name = Long_Name.explode(args.print_node).head
+          if (base_session_name == session_name) {
+            process_args(linter, args, progress)
+          } else
+            progress.echo_if(verbose, "Skipping " + args.print_node + " (session mismatch) ...")
+
         }))
       context.check_errors
       process_end(progress)
@@ -158,60 +162,44 @@ object Linter_Tool {
       "lint theory sources based on PIDE markup",
       Scala_Project.here,
       args => {
-        var base_sessions: List[String] = Nil
-        var select_dirs: List[Path] = Nil
-        var requirements = false
-        var exclude_session_groups: List[String] = Nil
-        var all_sessions = false
         var dirs: List[Path] = Nil
-        var session_groups: List[String] = Nil
         var logic = Dump.default_logic
         var options = Options.init()
         var verbose = false
         var verbose_all = false
-        var exclude_sessions: List[String] = Nil
         var mode = "text"
         var list = false
 
         val getopts = Getopts(
           """
-Usage: isabelle lint [OPTIONS] [SESSIONS ...]
+Usage: isabelle lint [OPTIONS] SESSION
 
   Options are:
-    -B NAME      include session NAME and all descendants
-    -D DIR       include session directory and select its sessions
-    -R           refer to requirements of selected sessions
-    -X NAME      exclude sessions from group NAME and all descendants
-    -a           select all sessions
     -b NAME      base logic image (default """ + isabelle.quote(Dump.default_logic) + """)
     -d DIR       include session directory
-    -g NAME      select session group NAME
     -o OPTION    override Isabelle system OPTION (via NAME=VAL or NAME)
     -v           verbose
     -V           verbose (General)
-    -x NAME      exclude session NAME and all descendants
     -r MODE      how to report results (either "text", "json" or "xml", default "text")
     -l           list the enabled lints (does not run the linter)
 
   Lint isabelle theories.
 """,
-          "B:" -> (arg => base_sessions = base_sessions ::: List(arg)),
-          "D:" -> (arg => select_dirs = select_dirs ::: List(Path.explode(arg))),
-          "R" -> (_ => requirements = true),
-          "X:" -> (arg => exclude_session_groups = exclude_session_groups ::: List(arg)),
-          "a" -> (_ => all_sessions = true),
           "b:" -> (arg => logic = arg),
           "d:" -> (arg => dirs = dirs ::: List(Path.explode(arg))),
-          "g:" -> (arg => session_groups = session_groups ::: List(arg)),
           "o:" -> (arg => options = options + arg),
           "v" -> (_ => verbose = true),
           "V" -> (_ => verbose_all = true),
-          "x:" -> (arg => exclude_sessions = exclude_sessions ::: List(arg)),
           "r:" -> (arg => mode = arg),
           "l" -> (_ => list = true)
         )
 
-        val sessions = getopts(args)
+        val more_args = getopts(args)
+        val session_name =
+          more_args match {
+            case List(session_name) => session_name
+            case _                  => getopts.usage()
+          }
 
         val lint = mode match {
           case "text" => Lint_Text
@@ -229,19 +217,13 @@ Usage: isabelle lint [OPTIONS] [SESSIONS ...]
           lint(
             options,
             logic,
+            session_name,
             verbose = verbose,
             verbose_all = verbose_all,
             progress = progress,
             dirs = dirs,
-            select_dirs = select_dirs,
             selection = Sessions.Selection(
-              requirements = requirements,
-              all_sessions = all_sessions,
-              base_sessions = base_sessions,
-              exclude_session_groups = exclude_session_groups,
-              exclude_sessions = exclude_sessions,
-              session_groups = session_groups,
-              sessions = sessions
+              sessions = List(session_name)
             )
           )
         }
