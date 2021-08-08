@@ -244,16 +244,6 @@ object Use_Isar extends Single_Command_Lint {
   }
 }
 
-object Debug_Command extends Single_Command_Lint {
-
-  val name: String = "debug_command"
-  val severity: Severity.Level = Severity.Low
-
-  def lint(command: Parsed_Command, report: Reporter): Option[Lint_Result] = {
-    report(s"${command.tokens}", command.range, None)
-  }
-}
-
 object Axiomatization_With_Where extends Single_Command_Lint {
 
   val name: String = "axiomatization_with_where"
@@ -581,7 +571,7 @@ object Complex_Method extends AST_Lint {
 
 }
 
-object Print_Structure extends AST_Lint {
+object Print_AST extends AST_Lint {
 
   val name: String = "print_structure"
   val severity: Severity.Level = Severity.Low

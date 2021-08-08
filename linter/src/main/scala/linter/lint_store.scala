@@ -14,27 +14,28 @@ object Lint_Store {
 
   private val all_lints: List[Lint] = List(
     Apply_Isar_Switch,
-    Use_By,
-    Unrestricted_Auto,
-    Low_Level_Apply_Chain,
-    Use_Isar,
-    Debug_Command,
-    Axiomatization_With_Where,
-    Unfinished_Proof,
-    Proof_Finder,
-    Counter_Example_Finder,
-    Bad_Style_Command,
-    Diagnostic_Command,
-    Short_Name,
-    Global_Attribute_On_Unnamed_Lemma,
-    Lemma_Transforming_Attribute,
-    Implicit_Rule,
-    Complex_Isar_Initial_Method,
-    Force_Failure,
     Auto_Structural_Composition,
-    Print_Structure,
+    Axiomatization_With_Where,
+    Bad_Style_Command,
+    Complex_Isar_Initial_Method,
     Complex_Method,
-    Global_Attribute_Changes
+    Counter_Example_Finder,
+    Debug_Command,
+    Diagnostic_Command,
+    Force_Failure,
+    Global_Attribute_Changes,
+    Global_Attribute_On_Unnamed_Lemma,
+    Implicit_Rule,
+    Lemma_Transforming_Attribute,
+    Low_Level_Apply_Chain,
+    Proof_Finder,
+    Short_Name,
+    Unfinished_Proof,
+    Unrestricted_Auto,
+    Use_By,
+    Use_Isar,
+    // Debugging lints
+    Print_AST,
   )
 
   for (lint <- all_lints) register_lint(lint)
@@ -55,8 +56,8 @@ object Lint_Store {
       )
     )
 
-    val no_diagnosis = Bundle(
-      "no_diagnosis",
+    val non_interactive = Bundle(
+      "non_interactive",
       Set(
         Unfinished_Proof.name,
         Proof_Finder.name,
@@ -122,7 +123,7 @@ object Lint_Store {
     )
   }
 
-  private val bundle_store: Map[String, Bundle] = Map.empty
+  val bundle_store: Map[String, Bundle] = Map.empty
 
   def register_bundle(bundle: Bundle): Unit =
     bundle_store += ((bundle.name, bundle))
@@ -132,7 +133,7 @@ object Lint_Store {
 
   private val all_bundles =
     List(
-      Bundle.no_diagnosis,
+      Bundle.non_interactive,
       Bundle.foundational,
       Bundle.pedantic,
       Bundle.default,
