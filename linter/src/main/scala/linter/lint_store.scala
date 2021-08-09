@@ -20,7 +20,6 @@ object Lint_Store {
     Complex_Isar_Initial_Method,
     Complex_Method,
     Counter_Example_Finder,
-    Debug_Command,
     Diagnostic_Command,
     Force_Failure,
     Global_Attribute_Changes,
