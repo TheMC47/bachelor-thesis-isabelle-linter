@@ -39,5 +39,6 @@ case class Combined_Method(
 
 case class Apply(val method: Text.Info[Method]) extends Proof
 case class Isar_Proof(val method: Option[Text.Info[Method]]) extends Proof
+case class By(val method1: Text.Info[Method], val method2: Option[Text.Info[Method]]) extends Proof
 
 case class Failed(val string: String) extends ASTNode

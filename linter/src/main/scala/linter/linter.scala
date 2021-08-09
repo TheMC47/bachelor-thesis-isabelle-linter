@@ -223,6 +223,12 @@ object Linter {
 
   abstract class AST_Lint extends Single_Command_Lint {
 
+    def lint_by(
+        method1: Text.Info[Method],
+        method2: Option[Text.Info[Method]],
+        report: Reporter
+    ): Option[Lint_Result] = None
+
     def lint_apply(method: Text.Info[Method], report: Reporter): Option[Lint_Result] = None
 
     def lint_isar_proof(method: Option[Text.Info[Method]], report: Reporter): Option[Lint_Result] =
@@ -230,8 +236,9 @@ object Linter {
 
     def lint_proof(proof: Text.Info[Proof], report: Reporter): Option[Lint_Result] =
       proof.info match {
-        case Apply(method)      => lint_apply(method, report)
-        case Isar_Proof(method) => lint_isar_proof(method, report)
+        case Apply(method)        => lint_apply(method, report)
+        case Isar_Proof(method)   => lint_isar_proof(method, report)
+        case By(method1, method2) => lint_by(method1, method2, report)
       }
 
     def lint_ast_node(

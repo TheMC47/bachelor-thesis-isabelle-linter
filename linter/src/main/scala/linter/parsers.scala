@@ -177,18 +177,31 @@ trait TokenParsers extends Parsers {
     def pMethods: Parser[Text.Info[Method]] = pSeq
   }
 
+  def pMethod: Parser[Text.Info[Method]] = MethodParsers.pMethod
+
   /* Apply */
-  def pApply: Parser[Text.Info[ASTNode]] = pCommand("apply") ~ MethodParsers.pMethod ^^ {
+  def pApply: Parser[Text.Info[ASTNode]] = pCommand("apply") ~ pMethod ^^ {
     case applyToken ~ method =>
       Text.Info(Text.Range(applyToken.range.start, method.range.stop), Apply(method))
   }
 
   /* Isar-Proof */
   def pIsarProof: Parser[Text.Info[ASTNode]] =
-    pCommand("proof") ~ MethodParsers.pMethod.? ^^ {
+    pCommand("proof") ~ pMethod.? ^^ {
       case proofToken ~ Some(method) =>
         Text.Info(Text.Range(proofToken.range.start, method.range.stop), Isar_Proof(Some(method)))
       case proofToken ~ None => Text.Info(proofToken.range, Isar_Proof(None))
+    }
+
+  def pBy: Parser[Text.Info[ASTNode]] =
+    pCommand("by") ~ pMethod ~ pMethod.? ^^ {
+      case by ~ method1 ~ method2 => {
+        val methodStop = method2.map(_.range).getOrElse(method1.range).stop
+        Text.Info(
+          Text.Range(by.range.start, methodStop),
+          By(method1, method2)
+        )
+      }
     }
 
   /* Attributes */
@@ -199,7 +212,7 @@ trait TokenParsers extends Parsers {
 
   def pAny: Parser[Elem] = elem("any", _ => true)
 
-  def tokenParser: Parser[Text.Info[ASTNode]] = pApply | pIsarProof
+  def tokenParser: Parser[Text.Info[ASTNode]] = pApply | pIsarProof | pBy
 
   def tryTransform[T](
       p: Parser[T],
