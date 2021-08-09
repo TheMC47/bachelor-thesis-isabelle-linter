@@ -223,16 +223,20 @@ object Linter {
 
   abstract class AST_Lint extends Single_Command_Lint {
 
+    def lint_method(method: Text.Info[Method], report: Reporter): Option[Lint_Result] = None
+
     def lint_by(
         method1: Text.Info[Method],
         method2: Option[Text.Info[Method]],
         report: Reporter
-    ): Option[Lint_Result] = None
+    ): Option[Lint_Result] =
+      lint_method(method1, report) orElse method2.map(lint_method(_, report)).flatten
 
-    def lint_apply(method: Text.Info[Method], report: Reporter): Option[Lint_Result] = None
+    def lint_apply(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
+      lint_method(method, report)
 
     def lint_isar_proof(method: Option[Text.Info[Method]], report: Reporter): Option[Lint_Result] =
-      None
+      method.map(lint_method(_, report)).flatten
 
     def lint_proof(proof: Text.Info[Proof], report: Reporter): Option[Lint_Result] =
       proof.info match {

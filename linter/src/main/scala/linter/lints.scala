@@ -453,12 +453,12 @@ object Implicit_Rule extends AST_Lint {
   val name: String = "implicit_rule"
   val severity: Severity.Level = Severity.Medium
 
-  override def lint_apply(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
+  override def lint_method(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
     method.info match {
       case Simple_Method(RToken(_, "rule", _), _, Nil) =>
         report("Do not use implicit rule.", method.range, None)
       case Combined_Method(left, _, right, _) =>
-        lint_apply(left, report).orElse(lint_apply(right, report))
+        lint_method(left, report) orElse lint_method(right, report)
       case _ => None
     }
 }
@@ -487,7 +487,7 @@ object Force_Failure extends AST_Lint {
   val name: String = "force_failure"
   val severity: Severity.Level = Severity.Low
 
-  override def lint_apply(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
+  override def lint_method(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
     method.info match {
       case Simple_Method(RToken(_, "simp", _), modifiers, args) =>
         report("Consider forciing failure.", method.range, None)
@@ -506,13 +506,13 @@ object Auto_Structural_Composition extends AST_Lint {
 
   }
 
-  override def lint_apply(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
+  override def lint_method(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
     method.info match {
       case Simple_Method(name, modifiers, args) => None
       case Combined_Method(left, Method.Combinator.Struct, right, modifiers) =>
         if (has_auto(left.info)) report("Do not use apply (auto;...)", method.range, None) else None
       case Combined_Method(left, _, right, modifiers) =>
-        lint_apply(left, report).orElse(lint_apply(right, report))
+        lint_method(left, report).orElse(lint_method(right, report))
     }
 }
 
@@ -557,17 +557,8 @@ object Complex_Method extends AST_Lint {
 
   def is_complex(command: Parsed_Command): Boolean = is_complex(command.ast_node.info)
 
-  override def lint_apply(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
+  override def lint_method(method: Text.Info[Method], report: Reporter): Option[Lint_Result] =
     if (is_complex_method(method.info)) report(message, method.range, None) else None
-
-  override def lint_isar_proof(
-      method: Option[Text.Info[Method]],
-      report: Reporter
-  ): Option[Lint_Result] =
-    for {
-      Text.Info(range, s_method) <- method
-      if is_complex_method(s_method)
-    } yield report(message, range, None).get
 
 }
 
