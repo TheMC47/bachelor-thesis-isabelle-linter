@@ -35,23 +35,37 @@ object Use_By extends Proper_Commands_Lint with TokenParsers {
 
   private def removeApply: Parser[String] = (pCommand("apply") ~ pSpace.?) ~> pAny.* ^^ mkString
 
-  private def gen_replacement(apply_script: List[Parsed_Command]): Option[String] =
+  private def removeBy: Parser[String] = (pCommand("by") ~ pSpace.?) ~> pAny.* ^^ mkString
+
+  private def gen_replacement(
+      apply_script: List[Parsed_Command],
+      has_by: Boolean = false
+  ): Option[String] =
     apply_script match {
       case apply1 :: apply2 :: done :: Nil =>
         for {
           method1 <- tryTransform(removeApply, apply1, true)
           method2 <- tryTransform(removeApply, apply2, true)
         } yield s"by $method1 $method2"
-      case apply :: done :: Nil =>
+      case apply :: done :: Nil if (!has_by) =>
         for {
           method <- tryTransform(removeApply, apply, true)
         } yield s"by $method"
+      case apply :: by :: Nil if (has_by) =>
+        for {
+          method1 <- tryTransform(removeApply, apply, true)
+          method2 <- tryTransform(removeBy, by, true)
+        } yield s"by $method1 $method2"
       case _ => None
     }
 
-  private def report_lint(apply_script: List[Parsed_Command], report: Lint_Report): Lint_Report = {
+  private def report_lint(
+      apply_script: List[Parsed_Command],
+      report: Lint_Report,
+      has_by: Boolean = false
+  ): Lint_Report = {
     val new_report = for {
-      replacement <- gen_replacement(apply_script)
+      replacement <- gen_replacement(apply_script, has_by)
     } yield add_result(
       """Use "by" instead of a short apply-script.""",
       list_range(apply_script.map(_.range)),
@@ -62,20 +76,37 @@ object Use_By extends Proper_Commands_Lint with TokenParsers {
     new_report.getOrElse(report)
   }
 
+  private def check_first_command(command: Parsed_Command): Boolean =
+    List("lemma", "theorem", "corollary").contains(command.kind)
+
+  private def single_by(command: Parsed_Command): Boolean =
+    command.ast_node.info match {
+      case By(_, None) => true
+      case _           => false
+    }
+
   @tailrec
   def lint_proper(commands: List[Parsed_Command], report: Lint_Report): Lint_Report =
     commands match {
-      case Parsed_Command("lemma")
+      case first
           :: (apply1 @ Parsed_Command("apply"))
           :: (apply2 @ Parsed_Command("apply"))
           :: (done @ Parsed_Command("done"))
-          :: next if (!(Complex_Method.is_complex(apply1) || Complex_Method.is_complex(apply2))) =>
+          :: next
+          if (check_first_command(first)
+            && !(Complex_Method.is_complex(apply1) || Complex_Method.is_complex(apply2))) =>
         lint_proper(next, report_lint(apply1 :: apply2 :: done :: Nil, report))
-      case Parsed_Command("lemma")
+      case first
           :: (apply @ Parsed_Command("apply"))
           :: (done @ Parsed_Command("done"))
-          :: next if (!Complex_Method.is_complex(apply)) =>
+          :: next if (check_first_command(first) && !Complex_Method.is_complex(apply)) =>
         lint_proper(next, report_lint(apply :: done :: Nil, report))
+      case first
+          :: (apply @ Parsed_Command("apply"))
+          :: (by @ Parsed_Command("by"))
+          :: next
+          if (check_first_command(first) && !Complex_Method.is_complex(apply) && single_by(by)) =>
+        lint_proper(next, report_lint(apply :: by :: Nil, report, has_by = true))
       case _ :: next => lint_proper(next, report)
       case Nil       => report
     }
