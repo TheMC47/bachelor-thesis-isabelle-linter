@@ -201,6 +201,12 @@ Usage: isabelle lint [OPTIONS] SESSION
         )
 
         val more_args = getopts(args)
+
+        val progress = new Console_Progress(verbose = verbose)
+
+        if (list)
+          list_lints(options, progress)
+
         val session_name =
           more_args match {
             case List(session_name) => session_name
@@ -213,11 +219,6 @@ Usage: isabelle lint [OPTIONS] SESSION
           case "xml"  => new Lint_XML()
           case _      => error(s"Unrecognized reporting mode $mode")
         }
-
-        val progress = new Console_Progress(verbose = verbose)
-
-        if (list)
-          list_lints(options, progress)
 
         progress.interrupt_handler {
           lint(
