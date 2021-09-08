@@ -3,10 +3,6 @@ theory Test
 
 begin
 
-lemma "False"
-  sorry
-
-
 datatype 'a seq = Empty | Seq 'a "'a seq"
 
 fun conc :: "'a seq \<Rightarrow> 'a seq \<Rightarrow> 'a seq"
@@ -14,51 +10,86 @@ where
   "conc Empty ys = ys"
 | "conc (Seq x xs) ys = Seq x (conc xs ys)"
 
-fun reverse :: "'a seq \<Rightarrow> 'a seq"
-where
-  "reverse Empty = Empty"
-| "reverse (Seq x xs) = conc (reverse xs) (Seq x Empty)"
 
-lemma conc_empty: "conc xs Empty = xs"
-  apply (induct)[1]
-  apply (induct; ((auto | blast+)[1]))
+lemma [simp]: "conc xs Empty = xs"
+  apply (induction xs)
+   apply auto
   done
+
+
+
+
+lemma [simp]: "conc xs Empty = xs" (* global_attribute_on_unnamed_lemma *)
+  apply (induction xs)
+proof auto (* apply_isar_switch *)
+qed
+
+
+lemma conc_empty:"conc xs Empty = xs"
+  apply (induction xs)
+  apply auto
+  done (* use_by *)
+
+lemma "conc xs Empty = xs"
+  apply (induction xs)
+  by auto (* use_by *)
+
+
+
+lemma "conc xs Empty = xs"
+  apply auto
+  done (* use_by *)
+
+lemma "conc xs Empty = xs"
+  apply (induction xs)
+  apply (auto;simp) (* auto_structural_composition *)
+  by auto
+  
+
+lemma "A \<longrightarrow> A"
+  apply rule (* implicit_rule *)
+  try (* proof_finder *)
+  nitpick (* counter_example_finder *)
+  apply simp (* force_failure *)
+  oops (* unfinished_proof *)
+
+
+
+declare conjE[simp add] and conc_empty[cong, simp]
 
 lemma "\<forall>(x:: nat). x \<ge> 0 "
   apply rule
   apply simp
   done
 
-lemma conjE[simp]:
-  assumes major: \<open>P \<and> Q\<close>
-    and r: \<open>\<lbrakk>P; Q\<rbrakk> \<Longrightarrow> R\<close>
-  shows \<open>R\<close>
-proof (rule r)
-  show "P"
-    by (rule major [THEN conjunct1])
-  show "Q"
-    by (rule major [THEN conjunct2]) 
-qed
+declare conc_empty[simp del] (* global_attribute_changes *)
 
-lemma ex1_equalsE: \<open>\<lbrakk>\<exists>!x. P(x); P(a); P(b)\<rbrakk> \<Longrightarrow> a = b\<close>  
+value "(1::nat) +1" (* diagnostic_command *)
+
+definition S :: "nat \<Rightarrow> nat" where (* short_name *)
+  "S x = Suc x"
+
+lemma ex1_equalsE: \<open>\<lbrakk>\<exists>!x. P(x); P(a); P(b)\<rbrakk> \<Longrightarrow> a = b\<close>
   apply (erule ex1E)
   apply (rule trans)
-   apply (rule_tac [2] sym)
+  apply (rule trans)
+  apply (rule trans)
+  apply (rule trans)
+      apply (rule trans)
+  apply(rule_tac [2] trans)
+  apply (rule trans) (* low_level_apply_chain *)
   sorry
 
 lemma "A \<longrightarrow> A"
-proof auto
+proof auto (* complex_isar_initial_method *)
 qed
 
-lemma "A \<longrightarrow> A"
-proof
-  assume a: A
-  show A by(rule a)
-qed
 
-axiomatization (* lint:disable *)
+axiomatization
   P :: "'a \<Rightarrow> bool"
   where
-  false: "False" 
+  false: "False" (* axiomatization_with_where *)
+
+
 
 end

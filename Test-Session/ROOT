@@ -2,4 +2,4 @@ chapter ROOT
 
 session Example = HOL +
   theories
-    Test (global)
+    Test
