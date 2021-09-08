@@ -1,0 +1,1 @@
+{"reports":[{"theory":"Stellar_Quorums.Stellar_Quorums","report":{"results":[{"name":"counter_example_finder","stopPosition":"109:171","stopOffset":5496,"edit":{"startOffset":5444,"stopOffset":5496,"replacement":"","msg":"Remove invocation"},"startOffset":5444,"severity":"High","startPosition":"109:119","commands":[-157]}]},"timing":178}]}
