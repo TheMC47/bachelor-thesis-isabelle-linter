@@ -1,5 +1,5 @@
 # Isabelle linter
-A linter for isabelle
+A linter for Isabelle. Developed for my bachelor's thesis at the Chair for Logic and Verification at the Department of Informatics of the Technical University of Munich.
 
 ## How to use
 
