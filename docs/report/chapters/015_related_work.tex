@@ -1,0 +1,56 @@
+\chapter{Related Work}\label{chapter:related}
+The term \textit{lint} in software originates from the 
+\textit{Lint} program developed by S. C. Johnson in 1977, which checks C
+programs "for bugs and obscurities" \cite{johnson1977lint}. For example, 
+it performs
+more involved type-checking that is not part of C-Compilers at
+the time, due to efficiency reasons. Nowadays
+most programming languages have linters, like ESLint \cite{eslint}
+for JavaScript, HLint \cite{hlint} for Haskell, and pylint \cite{pylint} 
+for Python.
+They provide feedback to users to help them catch bugs early, and learn
+the best-practices of the respective languages. Common features of
+these linters include IDE and CI/CD integration, and 
+automatic application of the suggestions generated.
+
+
+When it comes to Isabelle, Gerwin Klein published a style guide for Isabelle proofs on his 
+blog, separated in two parts \parencite{klein_2015,klein_2015_2}. It contains a 
+list of anti-patterns that should be avoided while writing proofs
+and what to do instead. These bad practices can result in a proof
+being brittle, hard to read, or difficult to reason about, making it 
+harder to maintain and work with. Although it is a good reference for the best practices and the potential pitfalls of working with 
+Isabelle, it is just text: it cannot be run in a continuous 
+integration pipeline, or be used to check to what extent a theory
+respects its suggestions. It is up to the user to follow it and ensure that 
+proofs conform to that standard. 
+
+To automate some of these checks, the \texttt{thylint} GitHub
+action\footnote{\url{https://github.com/seL4/ci-actions/tree/master/thylint}} provides
+a basic linter for
+Isabelle. It was developed as part of the seL4~\parencite{sel4}
+project to guarantee that no pull request contains unwanted commands, like
+proof-finder commands (e.g. \texttt{sledgehammer}) or diagnostic
+commands (e.g. \texttt{print\_simpset}). It also offers basic 
+configuration support by allowing users to control which classes
+of commands to prohibit. The limitation of this tool is that
+it offers neither a more granular control on what constitutes
+an illegal command and nor integration with
+the IDEs used for Isabelle. However, it does its job: it prevents merging
+contributions with unwanted commands.
+
+The situation is similar for most other proof assistants. 
+Coq \cite{barras:inria-00069968} includes
+a development style guide on its GitHub repository \footnote{\url{https://github.com/coq/coq/blob/master/dev/doc/style.txt}}.
+Projects using Coq, like Vericert \cite{herklotz2020formal},
+provide their own guides on what is expected from
+code within their source. The Agda \cite{agda} standard
+library also includes a style guide highlighting best-practices
+\footnote{\url{https://github.com/agda/agda-stdlib/blob/master/notes/style-guide.md}}. It is
+interesting to note that its description states the
+need for a linter to automate these checks: "It is hoped 
+that at some point a linter will be developed for Agda which will 
+automate most of this.". The \texttt{mathlib} library 
+\cite{ThemathlibCommunity2020} for the Lean \cite{deMoura2015} proof 
+assistant has a dedicated linter \cite{vanDoorn2020}, that can be
+invoked at any point with the \texttt{\#lint} command.

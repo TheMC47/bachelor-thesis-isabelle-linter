@@ -1,0 +1,147 @@
+\chapter{Evaluation}\label{chapter:evaluation}
+In this chapter we evaluate the linter in ``real-world'' conditions, in
+order to evaluate its performance. Moreover, the experiments give insight to
+what extent the best practices that are checked by the linter are applied
+in various Isabelle theories.
+
+The tests are performed on a machine with a 10 Core 2.4 GHz processor and 46 
+GB of RAM, running CentOS 8 and Isabelle with the Isabelle2021 February version.
+
+\section{Approach}
+The linter is evaluated against two classes of Isabelle theories:
+the HOL theories, intended to represent theories from official Isabelle
+libraries, and a random set of 20 sessions from the Archive of Formal 
+Proofs \footnote{Lp, LTL\_Master\_Theorem, Constructive\_Cryptography\_CM, Recursion-Addition, Randomised\_Social\_Choice, Parity\_Game, LTL, Possibilistic\_Noninterference, IMP2\_Binary\_Heap, DataRefinementIBP, Transitive-Closure, Stewart\_Apollonius, Minkowskis\_Theorem, Stellar\_Quorums, Smooth\_Manifolds, Category2, VerifyThis2019, No\_FTL\_observers, BDD, Pairing\_Heap}. The bundles of lints employed
+are respectively the \textit{foundational} and the \textit{afp} bundles.
+
+The command line tool is utilized
+to perform these experiments. For the AFP sessions, a base logic image
+is supplied (option \texttt{-b}) to each session in order to speed up 
+retrieving the snapshots. The values related to timing
+are averaged across 10 runs. Crucially, however, these values only 
+consider
+the time taken to lint the theories, without including the time
+needed to fetch the snapshots (which is dominant when using the
+command line tool). 
+
+\section{Results}
+\subsection{Report summary}
+The report summary for linting Isabelle/HOL and the selected
+AFP sessions can be seen on \autoref{tab:hol-summary} and
+\autoref{tab:afp-summary} respectively. The linter detected a total
+of 252 lints in Isabelle/HOL and 575 lints in the 
+AFP sessions. This is a significant difference, considering
+the sizes of both sets: Isabelle/HOL consists
+of 111 theories with around 113 thousand lines of theories, whereas
+the AFP selection contains 135 theories with around 73
+thousand lines. In relative terms, one lint got triggered every
+448 lines in Isabelle/HOL versus every 126 lines in
+the AFP sessions. The distribution of these lints
+is however comparable: those with high severity were \SI{28.97}{\percent} of the
+lints detected in Isabelle/HOL, which is lower than the
+\SI{45.39}{\percent} in the AFP sessions. Respectively for medium severity 
+lints it is \SI{58.35}{\percent} versus \SI{44.17}{\percent} and \SI{14.68}{\percent} versus \SI{10.43}{\percent} for the low
+severity lints.
+
+\begin{table}
+    \centering
+    
+\begin{tabular}{llr}
+\toprule
+Severity & Name & Number of occurences     \\
+\midrule
+High   & \hyperref[lint:unrestrictedauto]{Unrestricted auto} &  71 \\
+       & \hyperref[lint:globalattr]{Global attribute on unnamed lemma} &   2 \\
+Medium & \hyperref[lint:complexisar]{Complex Isar initial method} &  62 \\
+       & \hyperref[lint:implicitrule]{Implicit rule} &   55 \\
+       & \hyperref[lint:complexmethod]{Complex method} &   20 \\
+       & \hyperref[lint:lemmatrans]{Lemma-transforming attribute} &   3 \\
+       & \hyperref[lint:applyisarswitch]{Apply-Isar switch} &   2 \\
+Low & \hyperref[lint:useby]{Use by} &  37 \\
+\bottomrule
+& & Total: 252
+
+\end{tabular}
+    \caption{Lint summary of Isabelle/HOL}
+    \label{tab:hol-summary}
+    
+\end{table}
+\begin{table}
+    \centering
+\begin{tabular}{llr}
+\toprule
+Severity & Name & Number of occurences      \\
+\midrule
+High  & \hyperref[lint:unrestrictedauto]{Unrestricted auto} &  233 \\
+      & \hyperref[lint:globalattr]{Global attribute on unnamed lemma} &   27 \\
+      & \hyperref[lint:counterexample]{Counter-example finder} &    1 \\
+Medium & \hyperref[lint:complexmethod]{Complex method} &   81 \\
+       & \hyperref[lint:complexisar]{Complex Isar initial method} &   70 \\
+       & \hyperref[lint:applyisarswitch]{Apply-Isar switch} &   68 \\
+       & \hyperref[lint:implicitrule]{Implicit rule} &   33 \\
+       & \hyperref[lint:lemmatrans]{Lemma-transforming attribute} &    2 \\
+Low & \hyperref[lint:useby]{Use by} &   60 \\
+\bottomrule
+& & Total: 575
+\end{tabular}
+    \caption{Lint summary of the AFP selection}
+    \label{tab:afp-summary}
+\end{table}
+
+\subsection{Performance}
+The median time taken to lint a theory is 20.7 milliseconds with a mean
+of 53.55 milliseconds. This means that the results should be viewed
+skeptically: the theory sample used has a bias towards smaller 
+theories. In fact, the median length of the theories is 452 lines with
+a mean of 771.5 lines, but the longest theory, \textit{HOL.List}, has 8199
+lines. Another
+caveat to mention is that the number of lines of a theory is not the
+only metric that could be applied to quantify the size of a theory.
+However, it is a simpler and more common property than the number of commands.
+
+\autoref{fig:timing} and \autoref{fig:timing_small}
+show the time taken to process a theory, relative
+to the number of lines it has, and the number of results reported.
+We could observe two main aspects: First, larger 
+theories (in terms of number of lines) tending to take longer to process,
+and second, the processing time tending to increase with the number of 
+lints, for theories of similar length. 
+
+\begin{figure}
+    \centering
+    \input{images/timing.pgf}
+    \caption[Linting time (All theories)]{Time taken to lint a theory depending on its
+    length and the number of lints} \label{fig:timing}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \input{images/timing_small.pgf}
+    \caption[Linting time (Theories smaller than 3000 lines)]{Time taken to lint a theory depending on its
+    length and the number of lints (restricted to
+    theories shorter than 3000 lines) } \label{fig:timing_small}
+\end{figure}
+
+To get more insight on where time is spent during linting, the BDD
+session from the AFP is linted with the VisualVM\footnote{\url{https://visualvm.github.io/}} profiler attached. For reference, the 
+session has a total of 11058 lines of theory from which the linter generated
+72 suggestions. Data from the profiler suggests that \SI{31.67}{\percent} of the time 
+is spent by the linter trying the different checks, and the rest
+\SI{68.33}{\percent} is spent by the reporter converting the results to the required
+format (JSON in this case). The reporter spent almost all the time 
+converting text offsets to the "line, column" format. Text offsets represent
+how many characters are there before a certain position,
+which represents the way position information is communicated within Isabelle.
+The more usual "line, column" format makes it easier for users to navigate
+the sources and facilitates integration with other tools 
+like Language Server Protocol clients.
+Creating reporters that do not convert
+text offsets to lines and columns could cause a significant speedup
+in \textit{relative} terms. In absolute terms, for example, it took the 
+linter
+a total of 1039 milliseconds to process the BDD session, meaning
+around 710 milliseconds were spent in the reporter. This is not
+a noticeable difference, especially when considering the time taken to
+also generate the snapshots: around 2 minutes and 31 seconds are spent
+in total during the invocation of the tool. The time effectively needed
+by the linter to process the theories is rather insignificant.

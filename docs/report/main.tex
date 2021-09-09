@@ -1,0 +1,52 @@
+\RequirePackage[l2tabu,orthodox]{nag}
+
+\documentclass[headsepline,footsepline,footinclude=false,oneside,fontsize=11pt,paper=a4,listof=totoc,bibliography=totoc]{scrbook} % one-sided
+
+\input{settings}
+
+\newcommand*{\getUniversity}{Technische Universität München}
+\newcommand*{\getFaculty}{Department of Informatics}
+\newcommand*{\getTitle}{Development of a Linter for Isabelle}
+\newcommand*{\getTitleGer}{Entwicklung eines Linters für Isabelle}
+\newcommand*{\getAuthor}{Yecine Megdiche}
+\newcommand*{\getDoctype}{Bachelor's Thesis in Informatics}
+\newcommand*{\getSupervisor}{Prof. Tobias Nipkow}
+\newcommand*{\getAdvisorOne}{Lukas Stevens}
+\newcommand*{\getAdvisorTwo}{Fabian Huch}
+\newcommand*{\getSubmissionDate}{15.09.2021}
+\newcommand*{\getSubmissionLocation}{Munich}
+
+\begin{document}
+
+\pagenumbering{alph}
+\input{pages/cover}
+
+\frontmatter{}
+
+\input{pages/title}
+\input{pages/disclaimer}
+\input{pages/acknowledgments}
+\input{pages/abstract}
+\microtypesetup{protrusion=false}
+\tableofcontents{}
+\microtypesetup{protrusion=true}
+
+\mainmatter{}
+
+\input{chapters/01_introduction}
+\input{chapters/015_related_work}
+\input{chapters/02_preliminaries}
+\input{chapters/03_implementation}
+\input{chapters/04_evaluation}
+\input{chapters/05_conclusion}
+\input{chapters/appendices}
+
+\appendix{}
+
+\microtypesetup{protrusion=false}
+\listoffigures{}
+\listoftables{}
+\microtypesetup{protrusion=true}
+\printbibliography{}
+
+\end{document}
