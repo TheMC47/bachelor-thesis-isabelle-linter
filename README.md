@@ -1,3 +1,6 @@
+# READ ONLY
+Further developments of the linter are happening at https://github.com/isabelle-prover/isabelle-linter/. This is just to document the work during my bachelor's thesis.
+
 # Isabelle linter
 A linter for Isabelle. Developed for my bachelor's thesis at the Chair for Logic and Verification at the Department of Informatics of the Technical University of Munich.
 
